@@ -1,17 +1,23 @@
 {
-  "name": "OSIRIS — Global Intelligence Platform",
-  "short_name": "OSIRIS",
-  "description": "Real-time global OSINT intelligence dashboard. Track 10K+ aircraft, 2K satellites, worldwide CCTV, earthquakes, wildfires, nuclear facilities, and more.",
+  "name": "ORBINEX — Global Geospatial Intelligence Platform",
+  "short_name": "ORBINEX",
+  "description": "AI-powered global geospatial intelligence platform combining satellite imagery, GIS, real-time monitoring, AI-powered geographical change detection, cameras, global events, and actionable alerts.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#06060C",
-  "theme_color": "#D4AF37",
+  "background_color": "#030712",
+  "theme_color": "#00E5FF",
   "orientation": "landscape-primary",
-  "categories": ["security", "intelligence", "analytics", "news"],
+  "categories": ["security", "intelligence", "analytics", "geospatial", "satellite"],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-32.svg",
+      "sizes": "32x32",
       "type": "image/svg+xml",
       "purpose": "any"
     },

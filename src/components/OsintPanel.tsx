@@ -77,7 +77,7 @@ interface OsintPanelProps { isOpen?: boolean; onClose?: () => void; isMobile?: b
 /** A recon result as a flat, readable report for a .txt export. */
 function resultsToText(tool: string, query: string, data: unknown): string {
   const lines: string[] = [
-    `OSIRIS RECON — ${tool.toUpperCase()}`,
+    `ORBINEX RECON — ${tool.toUpperCase()}`,
     `Target: ${query || '(none)'}`,
     `Exported: ${new Date().toISOString()}`,
     '',
@@ -380,7 +380,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
     if (!payload) return;
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const slug = (query || activeTab).replace(/[^a-z0-9._-]+/gi, '_').slice(0, 40);
-    const base = `osiris-${activeTab}-${slug}-${stamp}`;
+    const base = `orbinex-${activeTab}-${slug}-${stamp}`;
     const [body, type, ext] = format === 'json'
       ? [JSON.stringify({ tool: activeTab, query, exported_at: new Date().toISOString(), results: payload }, null, 2), 'application/json', 'json']
       : [resultsToText(activeTab, query, payload), 'text/plain', 'txt'];
@@ -1679,7 +1679,7 @@ function OsintPanelInner({ isMobile, onSweepVisualize, onScanGeolocate }: OsintP
           <div className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--border-secondary)] bg-[#111] flex-shrink-0">
             <div className="flex items-center gap-3 min-w-0">
               <Radar className="w-5 h-5 text-[var(--gold-primary)] flex-shrink-0" />
-              <span className="hud-text text-[16px] text-[var(--text-primary)]">OSIRIS RECON TOOLKIT</span>
+              <span className="hud-text text-[16px] text-[var(--text-primary)]">ORBINEX RECON TOOLKIT</span>
               <span className="gotham-tag gotham-tag--classified" style={{ fontSize: '9px' }}>{TABS.length} MODULES</span>
               {currentTab && (
                 <>

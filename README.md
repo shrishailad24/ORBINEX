@@ -1,19 +1,22 @@
 <div align="center">
 
-# ⬡ OSIRIS
+# ⬡ ORBINEX
 
-### Open Source Intelligence & Reconnaissance Integrated System
+### GLOBAL GEOSPATIAL INTELLIGENCE PLATFORM
 
-[![Live Demo](https://img.shields.io/badge/osirisai.live-00E5FF?style=for-the-badge&logo=vercel&logoColor=white)](https://osirislive.app)
-[![Support OSIRIS](https://img.shields.io/badge/Support_Project-Patreon-FF424D?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/posts/159077425)
+**SEE THE WORLD. UNDERSTAND THE CHANGE.**
+
+[![Live Demo](https://img.shields.io/badge/orbinex.live-00E5FF?style=for-the-badge&logo=vercel&logoColor=white)](https://orbinex.live)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![MapLibre](https://img.shields.io/badge/MapLibre_GL-GPU_Rendered-396CB2?style=for-the-badge)](https://maplibre.org)
 [![License](https://img.shields.io/badge/License-MIT-D4AF37?style=for-the-badge)](LICENSE)
 
-**A real-time global intelligence dashboard that aggregates live flight tracking, CCTV networks, earthquake monitoring, conflict zone mapping, and 24/7 news feeds into a single GPU-accelerated interface.**
+**An AI-powered global geospatial intelligence and settlement monitoring platform that aggregates satellite imagery, live flight tracking, CCTV networks, earthquake monitoring, conflict zone mapping, and 24/7 news feeds into a single GPU-accelerated interface.**
 
-[Live Demo](https://osirisai.live) · [Report Bug](https://github.com/simplifaisoul/osiris/issues) · [Request Feature](https://github.com/simplifaisoul/osiris/issues) · [Join Discord](https://discord.gg/umBykEpb98)
+*SATELLITE · AI · EARTH · INTELLIGENCE*
+
+[Live Demo](https://orbinex.live) · [Documentation](/docs) · [Privacy](/privacy)
 
 </div>
 
@@ -22,25 +25,25 @@
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/taiwan-cctv.jpg" alt="OSIRIS over Taipei on the Night map, with live traffic-camera previews pinned across the city and the Longmen Building rooftop feed open" width="100%">
+  <img src="docs/screenshots/taiwan-cctv.jpg" alt="ORBINEX over Taipei on the Night map, with live traffic-camera previews pinned across the city and the Longmen Building rooftop feed open" width="100%">
   <br><sub><b>Taiwan</b> — Taipei's public traffic cameras streaming live on the Night map, one feed open full-size</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/seoul-live-cctv.jpg" alt="OSIRIS over Seoul in 3D terrain around Namsan Tower, with live CCTV previews and the Cheonggyecheon feed open" width="100%">
+  <img src="docs/screenshots/seoul-live-cctv.jpg" alt="ORBINEX over Seoul in 3D terrain around Namsan Tower, with live CCTV previews and the Cheonggyecheon feed open" width="100%">
   <br><sub><b>Seoul</b> — live CCTV in 3D terrain around Namsan Tower, with the Cheonggyecheon feed playing</sub>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/save-an-area.jpg" alt="A drawn area over mountain terrain in OSIRIS, with the live cameras inside it and the Drawing Tools panel showing the saved area" width="100%">
-  <br><sub><b>Save an Area</b> — draw a region and OSIRIS finds every camera inside it, ready to export as GeoJSON</sub>
+  <img src="docs/screenshots/save-an-area.jpg" alt="A drawn area over mountain terrain in ORBINEX, with the live cameras inside it and the Drawing Tools panel showing the saved area" width="100%">
+  <br><sub><b>Save an Area</b> — draw a region and ORBINEX finds every camera inside it, ready to export as GeoJSON</sub>
 </p>
 
 ---
 
 ## Overview
 
-Osiris is a production-grade OSINT platform that provides situational awareness across multiple intelligence domains. Built with Next.js 16 and MapLibre GL, every data point is rendered via WebGL for 60fps performance even with thousands of concurrent entities on-screen.
+ORBINEX is a production-grade geospatial intelligence platform that provides situational awareness across multiple intelligence domains. Built with Next.js 16 and MapLibre GL, every data point is rendered via WebGL for 60fps performance even with thousands of concurrent entities on-screen.
 
 ### Key Capabilities
 

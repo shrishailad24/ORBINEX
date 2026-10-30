@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import ErrorBoundary from '@/components/ErrorBoundary';
+import { BRAND } from '@/lib/brand';
 import "./globals.css";
 
-const SITE_URL = "https://osirisai.live";
-const SITE_NAME = "OSIRIS";
-const SITE_TITLE = "OSIRIS — Open Source Intelligence Platform | Live Flight Tracking, CCTV, OSINT Tools & More";
-const SITE_DESCRIPTION = "The open-source Palantir alternative. Track live aircraft, satellites, and worldwide CCTV cameras on a 3D globe. Run Nmap scans, DNS lookups, WHOIS queries, SSL cert analysis & threat intelligence — all from your browser. 20+ data sources including live earthquake, wildfire, cyber threat and conflict feeds, plus mapped reference data such as nuclear facilities. Free & open source.";
+const SITE_URL = BRAND.url;
+const SITE_NAME = BRAND.name;
+const SITE_TITLE = `${BRAND.name} — ${BRAND.description} | ${BRAND.keywords}`;
+const SITE_DESCRIPTION = `${BRAND.metaDescription} ${BRAND.tagline}`;
 
 export const viewport: Viewport = {
-  themeColor: "#D4AF37",
+  themeColor: "#00E5FF",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -19,25 +20,18 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_TITLE,
-    template: "%s | OSIRIS Intelligence",
+    template: `%s | ${BRAND.name} Intelligence`,
   },
   description: SITE_DESCRIPTION,
   keywords: [
-    // OSINT Tools - Primary focus
-    "OSINT tools", "free OSINT tools", "online OSINT toolkit", "OSINT framework",
-    "nmap online", "nmap scanner online", "free nmap scan", "port scanner online",
-    "DNS lookup tool", "WHOIS lookup", "reverse DNS", "DNS records",
-    "SSL certificate checker", "certificate transparency", "cert lookup",
-    "BGP routing lookup", "ASN lookup", "IP geolocation",
-    "threat intelligence", "threat intel lookup", "IP reputation check",
-    "network reconnaissance", "recon tools", "penetration testing tools",
-    "cybersecurity tools", "infosec tools", "security scanner",
-    "linux OSINT tools", "kali linux tools online", "OSINT browser tools",
-    
-    // Intelligence Platform
-    "OSINT", "open source intelligence", "intelligence platform", "global intelligence",
-    "geospatial intelligence", "GEOINT", "SIGINT", "real-time tracking",
-    "palantir alternative", "open source palantir", "intelligence dashboard",
+    // ORBINEX Core
+    "ORBINEX", "orbinex.live", "geospatial intelligence", "GEOINT", "satellite AI",
+    "earth intelligence", "satellite observation", "change detection", "remote sensing",
+    "satellite imagery", "forest monitoring", "settlement monitoring", "historical satellite comparison",
+
+    // OSINT Tools & Platforms
+    "OSINT tools", "online OSINT toolkit", "OSINT framework",
+    "threat intelligence", "IP geolocation", "network reconnaissance",
     
     // Tracking & Data
     "flight tracker", "aircraft tracking", "ADS-B tracker", "live flight radar",
@@ -45,18 +39,13 @@ export const metadata: Metadata = {
     "CCTV cameras live", "security cameras worldwide", "live cameras",
     "earthquake monitor", "seismic activity", "USGS earthquake",
     "wildfire tracker", "NASA FIRMS", "active fires",
-    "nuclear facilities map", "nuclear power plants",
-    "severe weather alerts", "weather radar",
+    "nuclear facilities map", "severe weather alerts", "weather radar",
     "cyber threats dashboard", "CVE tracker",
-    "space weather", "solar storm", "GPS jamming",
     "defense stocks", "commodities tracker",
-    
-    // Brand
-    "osiris", "osirisai", "osirisai.live",
   ],
-  authors: [{ name: "Osiris Project", url: SITE_URL }],
-  creator: "Osiris Project",
-  publisher: "Osiris Project",
+  authors: [{ name: "ORBINEX Project", url: SITE_URL }],
+  creator: "ORBINEX Project",
+  publisher: "ORBINEX Project",
   robots: {
     index: true,
     follow: true,
@@ -70,6 +59,8 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.svg", type: "image/svg+xml", sizes: "32x32" },
       { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
       { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
       { url: "/android-chrome-192x192.png", type: "image/png", sizes: "192x192" },
@@ -78,7 +69,7 @@ export const metadata: Metadata = {
     apple: [
       { url: "/apple-touch-icon.png", sizes: "180x180" },
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/favicon.svg",
     other: [
       {
         rel: "apple-touch-icon-precomposed",
@@ -91,8 +82,8 @@ export const metadata: Metadata = {
     canonical: SITE_URL,
   },
   openGraph: {
-    title: "OSIRIS — The Open-Source Palantir Alternative | Live Flights, CCTV, Satellites & OSINT Tools",
-    description: "Track 10K+ aircraft, 2K satellites & worldwide CCTV on a 3D globe. Run Nmap, DNS, WHOIS & threat intel scans from your browser. 20+ live intelligence feeds. Free. Open source.",
+    title: `${BRAND.name} — ${BRAND.description} | ${BRAND.keywords}`,
+    description: SITE_DESCRIPTION,
     type: "website",
     siteName: SITE_NAME,
     locale: "en_US",
@@ -102,27 +93,27 @@ export const metadata: Metadata = {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "OSIRIS — Open Source Intelligence Platform with Live Tracking & OSINT Tools",
+        alt: `${BRAND.name} — ${BRAND.fullName}`,
         type: "image/png",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "🛰️ OSIRIS — Open Source Palantir Alternative | Live Tracking + OSINT Tools",
-    description: "Track 10K+ flights, satellites & CCTV worldwide. Run Nmap, DNS, WHOIS scans from your browser. 20+ live intel feeds. Free & open source.",
-    creator: "@simplifaisoul",
-    site: "@simplifaisoul",
+    title: `🛰️ ${BRAND.name} — ${BRAND.tagline}`,
+    description: SITE_DESCRIPTION,
+    creator: "@orbinex",
+    site: "@orbinex",
     images: [`${SITE_URL}/og-image.png`],
   },
   category: "technology",
-  classification: "Intelligence & Security",
+  classification: "Geospatial Intelligence & Security",
   other: {
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "OSIRIS",
+    "apple-mobile-web-app-title": "ORBINEX",
     "mobile-web-app-capable": "yes",
-    "msapplication-TileColor": "#06060C",
+    "msapplication-TileColor": "#030712",
     "msapplication-config": "none",
   },
 };
@@ -131,8 +122,8 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: "OSIRIS — OSINT Toolkit & Intelligence Platform",
-  alternateName: ["OSIRIS", "OsirisAI", "Osiris OSINT"],
+  name: `${BRAND.name} — ${BRAND.fullName}`,
+  alternateName: ["ORBINEX", "OrbinexAI", "Orbinex Intelligence"],
   url: SITE_URL,
   description: SITE_DESCRIPTION,
   applicationCategory: "SecurityApplication",
@@ -169,7 +160,7 @@ const jsonLd = {
   screenshot: `${SITE_URL}/og-image.png`,
   author: {
     "@type": "Organization",
-    name: "Osiris Project",
+    name: "ORBINEX Project",
     url: SITE_URL,
   },
 };
@@ -184,9 +175,8 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="icon" href="/favicon.svg" sizes="any" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="canonical" href={SITE_URL} />
         
@@ -198,7 +188,7 @@ export default function RootLayout({
 
       </head>
       <body className="antialiased">
-        <ErrorBoundary name="OSIRIS Core">
+        <ErrorBoundary name="ORBINEX Core">
           {children}
         </ErrorBoundary>
       </body>

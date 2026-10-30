@@ -2,8 +2,9 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════════════
-   OSIRIS — Global Intelligence Platform Design System
-   Egyptian Mythology × Dark Ops × Glassmorphism
+   ORBINEX — Global Geospatial Intelligence Platform Design System
+   SATELLITE · AI · EARTH · INTELLIGENCE
+   Dark Intelligence Platform × Geospatial Operations × Glassmorphism
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -229,18 +230,20 @@ html:has(.docs-root) body {
   border-radius: 10px;
 }
 
-/* ── Osiris Gold Glow ── */
+/* ── ORBINEX & Legacy Glow ── */
+.orbinex-glow,
 .osiris-glow {
   box-shadow:
-    0 0 20px rgba(var(--gold-rgb), 0.12),
-    0 0 60px rgba(var(--gold-rgb), 0.06),
+    0 0 20px rgba(var(--cyan-rgb), 0.16),
+    0 0 60px rgba(var(--gold-rgb), 0.08),
     0 4px 30px rgba(0, 0, 0, 0.5);
 }
 
+.orbinex-glow-cyan,
 .osiris-glow-cyan {
   box-shadow:
-    0 0 20px rgba(var(--cyan-rgb), 0.1),
-    0 0 60px rgba(var(--cyan-rgb), 0.05);
+    0 0 20px rgba(var(--cyan-rgb), 0.2),
+    0 0 60px rgba(var(--cyan-rgb), 0.08);
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -301,6 +304,7 @@ html:has(.docs-root) body {
   50% { opacity: 0.6; }
 }
 
+.animate-orbinex-pulse,
 .animate-osiris-pulse { animation: osiris-pulse 2s ease-in-out infinite; }
 .animate-glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
 .animate-data-pulse { animation: data-pulse 2s ease-in-out infinite; }

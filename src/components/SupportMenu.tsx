@@ -21,7 +21,7 @@ const OPTIONS = [
     href: 'https://shop.osirisai.live/',
     Icon: ShoppingBag,
     label: 'BUY MERCH',
-    detail: 'shop.osirisai.live',
+    detail: 'Official Merch Store',
     color: 'var(--cyan-primary)',
   },
 ] as const;
