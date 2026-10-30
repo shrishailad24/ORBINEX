@@ -81,6 +81,15 @@ interface OsirisMapProps {
   theme?: 'core' | 'ghost';
   drawnPolygons?: Array<{ id: string; name: string; geojson: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString>; color: string }>;
   arcgisLayers?: Array<{ id: string; title: string; geojson: any; color?: string; opacity?: number }>;
+  satelliteImageryLayer?: {
+    id: string;
+    type: 'raster' | 'image';
+    url?: string;
+    tileUrl?: string;
+    coordinates?: [[number, number], [number, number], [number, number], [number, number]];
+    opacity?: number;
+    visible?: boolean;
+  } | null;
   /** Active draw mode, or null when not drawing. */
   drawMode?: DrawMode | null;
   onDrawProgress?: (p: DrawProgress | null) => void;
@@ -201,7 +210,7 @@ interface AlertPinFeature {
   properties: AlertPinProps;
 }
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], satelliteImageryLayer = null, drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -3223,6 +3232,70 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       }
     });
   }, [mapReady, arcgisLayers]);
+
+  // ── ORBINEX SATELLITE IMAGERY LAYER (RASTER / IMAGE QUAD OVERLAY) ──
+  const prevSatelliteLayerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const map = mapRef.current;
+    const config = satelliteImageryLayer;
+
+    if (!config || !config.visible) {
+      if (prevSatelliteLayerRef.current) {
+        const id = prevSatelliteLayerRef.current;
+        if (map.getLayer(`orbinex-${id}-raster`)) map.removeLayer(`orbinex-${id}-raster`);
+        if (map.getSource(`orbinex-${id}`)) map.removeSource(`orbinex-${id}`);
+        prevSatelliteLayerRef.current = null;
+      }
+      return;
+    }
+
+    const sourceId = `orbinex-${config.id}`;
+    const layerId = `${sourceId}-raster`;
+
+    if (prevSatelliteLayerRef.current && prevSatelliteLayerRef.current !== config.id) {
+      const oldId = prevSatelliteLayerRef.current;
+      if (map.getLayer(`orbinex-${oldId}-raster`)) map.removeLayer(`orbinex-${oldId}-raster`);
+      if (map.getSource(`orbinex-${oldId}`)) map.removeSource(`orbinex-${oldId}`);
+    }
+    prevSatelliteLayerRef.current = config.id;
+
+    if (!map.getSource(sourceId)) {
+      if (config.type === 'raster' && config.tileUrl) {
+        map.addSource(sourceId, {
+          type: 'raster',
+          tiles: [config.tileUrl],
+          tileSize: 256,
+        });
+      } else if (config.type === 'image' && config.url && config.coordinates) {
+        map.addSource(sourceId, {
+          type: 'image',
+          url: config.url,
+          coordinates: config.coordinates,
+        });
+      }
+
+      if (map.getSource(sourceId)) {
+        const firstSymbolLayer = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
+        map.addLayer(
+          {
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            paint: {
+              'raster-opacity': config.opacity ?? 0.85,
+              'raster-fade-duration': 300,
+            },
+          },
+          firstSymbolLayer
+        );
+      }
+    } else {
+      if (map.getLayer(layerId)) {
+        map.setPaintProperty(layerId, 'raster-opacity', config.opacity ?? 0.85);
+      }
+    }
+  }, [mapReady, satelliteImageryLayer]);
 
   const drawCbRef = useRef({ onDrawComplete, onDrawProgress, onDrawCancel });
   /** Set by the drawing effect so on-screen buttons can dispatch into it. */

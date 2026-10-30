@@ -2308,12 +2308,12 @@ export default function Dashboard() {
         isOpen={showSatelliteCompare}
         onClose={() => setShowSatelliteCompare(false)}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
-        onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity }) => {
-          if (afterScene?.coordinates && afterScene?.thumbnailUrl) {
+        onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl }) => {
+          if (afterScene?.coordinates && (processedImageUrl || afterScene?.thumbnailUrl)) {
             setActiveSatelliteImagery({
               id: afterScene.id,
               type: 'image',
-              url: `/api/satellite/asset?url=${encodeURIComponent(afterScene.thumbnailUrl)}`,
+              url: processedImageUrl || `/api/satellite/asset?url=${encodeURIComponent(afterScene.thumbnailUrl!)}`,
               coordinates: afterScene.coordinates,
               opacity,
               visible: true,
