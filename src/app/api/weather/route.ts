@@ -154,7 +154,7 @@ function parseGdacsRss(xml: string): WeatherEvent[] {
  * more here than anywhere else in the app: an empty warnings panel reads as
  * "nothing is happening", and that is not the same as "we could not ask".
  */
-const loadEvents = cachedSource<WeatherEvent>('weather:events', collectEvents, 3 * 60_000);
+const loadEvents = cachedSource<WeatherEvent>('weather:events', collectEvents, 10 * 60_000, { swr: true });
 
 export async function GET() {
   try {
@@ -176,17 +176,17 @@ async function collectEvents(): Promise<WeatherEvent[]> {
   {
     const [eonetRes, nwsRes, gdacsRes] = await Promise.allSettled([
       stealthFetch('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=100', {
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(3500),
       }),
       fetch('https://api.weather.gov/alerts/active?status=actual&message_type=alert', {
         headers: {
           Accept: 'application/geo+json',
           'User-Agent': 'OSIRIS Severe Weather Layer',
         },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(3500),
       }),
       stealthFetch('https://www.gdacs.org/xml/rss.xml', {
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(3500),
       }),
     ]);
 

@@ -461,7 +461,9 @@ export default function Dashboard() {
   const startTime = useRef(Date.now());
   const geocodeCache = useRef<Map<string, string>>(new Map());
   const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const geocodeAbortRef = useRef<AbortController | null>(null);
   const lastGeocodedPos = useRef<{ lat: number; lng: number } | null>(null);
+  const inflightEndpointRequests = useRef<Map<string, Promise<boolean>>>(new Map());
 
   // ── DEFAULT: Most layers OFF — fast initial load ──
   const [activeLayers, setActiveLayers] = useState({
@@ -855,11 +857,18 @@ export default function Dashboard() {
       }
       const gk = `${coords.lat.toFixed(1)},${coords.lng.toFixed(1)}`; // coarser grid = more cache hits
       if (geocodeCache.current.has(gk)) { setLocationLabel(geocodeCache.current.get(gk)!); lastGeocodedPos.current = coords; return; }
+      
+      // Abort previous in-flight reverse geocode to eliminate request pile-up
+      if (geocodeAbortRef.current) {
+        geocodeAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      geocodeAbortRef.current = controller;
+
       try {
-        /* Our own route, not Nominatim directly: it rounds the coordinate,
-           caches the answer for everyone, and holds the app's request budget
-           for the service — see lib/nominatim.ts. */
-        const res = await fetch(`/api/geo/reverse?lat=${coords.lat}&lng=${coords.lng}`);
+        const res = await fetch(`/api/geo/reverse?lat=${coords.lat}&lng=${coords.lng}`, {
+          signal: controller.signal,
+        });
         if (res.ok) {
           const d = await res.json();
           const label = d.label || 'Unknown';
@@ -868,8 +877,12 @@ export default function Dashboard() {
           setLocationLabel(label);
           lastGeocodedPos.current = coords;
         }
-      } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
-    }, 3000); // 3s debounce (was 1.5s)
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          console.warn('[ORBINEX] Geocode error:', e instanceof Error ? e.message : e);
+        }
+      }
+    }, 1500); // responsive 1.5s debounce
   }, []);
 
   // Region dossier (double right-click)
@@ -970,23 +983,34 @@ export default function Dashboard() {
     { skipWhenHidden = false }: { skipWhenHidden?: boolean } = {},
   ): Promise<boolean> => {
     if (skipWhenHidden && typeof document !== 'undefined' && document.hidden) return false;
-    try {
-      // Force the browser to bypass its local disk cache for real-time data
-      const res = await fetch(url, { ...options, cache: 'no-store' });
-      if (res.ok) {
-        const json = await res.json();
-        const d = transform ? transform(json) : json;
-        dataRef.current = { ...dataRef.current, ...d };
-        setDataVersion(v => v + 1);
-        setBackendStatus('connected');
-        return true;
+    
+    // Deduplicate concurrent in-flight requests to identical endpoint URLs
+    const existingPromise = inflightEndpointRequests.current.get(url);
+    if (existingPromise) return existingPromise;
+
+    const promise = (async () => {
+      try {
+        const res = await fetch(url, options);
+        if (res.ok) {
+          const json = await res.json();
+          const d = transform ? transform(json) : json;
+          dataRef.current = { ...dataRef.current, ...d };
+          setDataVersion(v => v + 1);
+          setBackendStatus('connected');
+          return true;
+        }
+        return false;
+      } catch (e) {
+        console.warn('[ORBINEX] Fetch error:', e instanceof Error ? e.message : e);
+        setBackendStatus('error');
+        return false;
+      } finally {
+        inflightEndpointRequests.current.delete(url);
       }
-      return false;
-    } catch (e) {
-      console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e);
-      setBackendStatus('error');
-      return false;
-    }
+    })();
+
+    inflightEndpointRequests.current.set(url, promise);
+    return promise;
   }, []);
 
   // ── PROGRESSIVE DATA LOADING (request-optimized) ──

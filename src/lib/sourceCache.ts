@@ -50,37 +50,58 @@ export function cachedSource<T>(
   key: string,
   fetcher: () => Promise<T[]>,
   ttlMs: number = DEFAULT_TTL_MS,
+  options?: { swr?: boolean }
 ): () => Promise<T[]> {
   return async () => {
     const now = Date.now();
     const entry = store.get(key) as Entry<T> | undefined;
 
+    // Active cache hit: valid and within TTL
     if (entry && now < entry.expiresAt && entry.data.length > 0) return entry.data;
-    if (entry?.inflight) return entry.inflight;
 
+    // If a request is already in-flight:
+    if (entry?.inflight) {
+      // If SWR is enabled and we have stale data, serve stale immediately
+      if (options?.swr && entry.data.length > 0) {
+        return entry.data;
+      }
+      return entry.inflight;
+    }
+
+    // Launch refresh
     const inflight = (async () => {
       try {
         const data = await fetcher();
         // An empty result is treated as a failed refresh: keep whatever we had.
         if (data.length === 0 && entry?.data.length) {
-          store.set(key, { data: entry.data, expiresAt: now + ttlMs, inflight: null });
+          store.set(key, { data: entry.data, expiresAt: Date.now() + ttlMs, inflight: null });
           return entry.data;
         }
-        store.set(key, { data, expiresAt: now + ttlMs, inflight: null });
+        store.set(key, { data, expiresAt: Date.now() + ttlMs, inflight: null });
         return data;
       } catch (e) {
         if (entry?.data.length) {
-          console.warn(`[OSIRIS] ${key} refresh failed — serving ${entry.data.length} cached cameras`);
-          // Retry sooner than a full TTL, but don't hammer the failing upstream.
-          store.set(key, { data: entry.data, expiresAt: now + 60_000, inflight: null });
+          console.warn(`[ORBINEX] ${key} refresh failed — serving ${entry.data.length} cached items`);
+          store.set(key, { data: entry.data, expiresAt: Date.now() + 60_000, inflight: null });
           return entry.data;
         }
-        console.warn(`[OSIRIS] ${key} fetch failed with no cache to fall back on:`, e);
-        store.set(key, { data: [], expiresAt: now + 60_000, inflight: null });
+        console.warn(`[ORBINEX] ${key} fetch failed with no cache to fall back on:`, e);
+        store.set(key, { data: [], expiresAt: Date.now() + 60_000, inflight: null });
         return [];
       }
     })();
 
+    // If SWR option is enabled and we have stale data, return immediately!
+    if (options?.swr && entry && entry.data.length > 0) {
+      store.set(key, {
+        data: entry.data,
+        expiresAt: entry.expiresAt,
+        inflight,
+      } as Entry<unknown>);
+      return entry.data;
+    }
+
+    // Non-SWR or Cold start with no cached data: caller awaits the inflight promise
     store.set(key, {
       data: entry?.data ?? [],
       expiresAt: entry?.expiresAt ?? 0,
@@ -92,14 +113,7 @@ export function cachedSource<T>(
   };
 }
 
-/**
- * Read a source without triggering a fetch.
- *
- * The catalogue route uses this to answer from what it already has and to
- * queue only the regions it is actually missing — otherwise every request
- * enqueues all 48 regions into the pool, and a warm catalogue still pays for a
- * queue it does not need.
- */
+/** Read a source without triggering a fetch. */
 export function peekSource<T>(key: string, allowStale = false): T[] | undefined {
   const entry = store.get(key) as Entry<T> | undefined;
   if (!entry || entry.data.length === 0) return undefined;

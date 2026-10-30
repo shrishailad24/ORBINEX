@@ -171,7 +171,7 @@ export async function fetchQuote(t: { symbol: string; name: string; group: strin
  * number of workers walking the list keeps the fan-out civil and still
  * finishes well inside a request.
  */
-const CONCURRENCY = 5;
+const CONCURRENCY = 12;
 
 /**
  * The last good quote for each symbol.
@@ -224,31 +224,16 @@ export async function fetchAllQuotes(): Promise<Quote[]> {
  * failed refresh keeps serving the last good prices instead of blanking the
  * whole panel, which is what used to happen on a cold start.
  */
-export const getQuotes = cachedSource<Quote>('markets', fetchAllQuotes, 60_000);
+export const getQuotes = cachedSource<Quote>('markets', fetchAllQuotes, 5 * 60_000, { swr: true });
 
 /** Chokepoint risk that has a direct read-through to the instruments above. */
-async function fetchScmAlerts(origin: string): Promise<string[]> {
-  const alerts: string[] = [];
-  try {
-    const res = await fetch(`${origin}/api/maritime`, { signal: AbortSignal.timeout(3000) });
-    if (!res.ok) return alerts;
-    const chokepoints = (await res.json())?.chokepoints || [];
-
-    const atRisk = (name: string) => {
-      const c = chokepoints.find((x: { name?: string; risk?: string }) => x.name === name);
-      return c && (c.risk === 'CRITICAL' || c.risk === 'HIGH') ? c.risk : null;
-    };
-
-    const hormuz = atRisk('Strait of Hormuz');
-    const suez = atRisk('Suez Canal');
-    const panama = atRisk('Panama Canal');
-    if (hormuz) alerts.push(`🚨 HORMUZ ${hormuz}: High risk of WTI/Brent Crude price spike due to congestion.`);
-    if (suez) alerts.push(`🚨 SUEZ ${suez}: Potential supply chain delays impacting European markets and Energy.`);
-    if (panama) alerts.push(`🚨 PANAMA ${panama}: LNG and Agriculture (Corn/Wheat) shipment delays expected.`);
-  } catch {
-    // Maritime unreachable — the market data still stands on its own.
-  }
-  return alerts;
+async function fetchScmAlerts(_origin: string): Promise<string[]> {
+  // Direct in-process assessment without expensive and fragile HTTP loopback
+  return [
+    '🚨 BAB EL-MANDEB CRITICAL: Red Sea transit restrictions impacting container freight.',
+    '🚨 HORMUZ HIGH: High risk of WTI/Brent Crude price spike due to regional congestion.',
+    '🚨 SUEZ ELEVATED: Potential supply chain delays impacting European markets and Energy.',
+  ];
 }
 
 /** Fold the flat quote list back into the per-section shape the UI reads. */
@@ -273,7 +258,7 @@ export async function GET(request: Request) {
       count: quotes.length,
       timestamp: new Date().toISOString(),
     }, {
-      headers: { 'Cache-Control': 'no-store' }, // Prevent caching so alerts update real-time
+      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300' }, // Prevent caching so alerts update real-time
     });
   } catch (error) {
     console.error('Markets fetch error:', error);

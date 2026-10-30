@@ -321,7 +321,7 @@ type NewsItem = {
 const LOOKUPS_PER_REFRESH = 15;
 
 /** How long a request waits for place lookups before answering with what it has. */
-const PLACE_BUDGET_MS = 2500;
+const PLACE_BUDGET_MS = 500;
 
 /**
  * Pins each item to the place it names, where one resolves. Lookups are
@@ -456,19 +456,33 @@ async function buildFeed(): Promise<FeedPayload> {
 
 export async function GET() {
   try {
-    const fresh = feed && Date.now() - feed.at < FEED_TTL_MS;
-    if (!fresh) {
-      // One build at a time: concurrent readers wait for it rather than each
-      // starting their own and spending the place budget several times over.
-      building ??= buildFeed().finally(() => { building = null; });
-      const body = await building;
-      feed = { at: Date.now(), body };
+    const now = Date.now();
+    // SWR: If we have an existing feed, serve it immediately (< 1ms)
+    if (feed) {
+      if (now - feed.at >= FEED_TTL_MS && !building) {
+        // Kick off revalidation asynchronously in the background
+        building = buildFeed().then(body => {
+          feed = { at: Date.now(), body };
+        }).catch(err => {
+          console.warn('[ORBINEX] Background news feed refresh error:', err);
+        }).finally(() => {
+          building = null;
+        });
+      }
+      return NextResponse.json(feed.body, {
+        headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
+      });
     }
-    return NextResponse.json(feed!.body, {
+
+    // Cold start with no prior feed: wait for first build
+    building ??= buildFeed().finally(() => { building = null; });
+    const body = await building;
+    feed = { at: Date.now(), body };
+
+    return NextResponse.json(feed.body, {
       headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120' },
     });
   } catch {
-    // A build that fails leaves the last good feed in place, if there is one.
     if (feed) return NextResponse.json(feed.body, { headers: { 'Cache-Control': 'public, s-maxage=30' } });
     return NextResponse.json({ news: [], error: 'Failed to fetch intel' }, { status: 500 });
   }
