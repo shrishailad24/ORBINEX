@@ -28,6 +28,7 @@ import GlobalStatusBar from '@/components/GlobalStatusBar';
 import LiveAlerts from '@/components/LiveAlerts';
 import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
+import SatelliteComparePanel from '@/components/geointel/SatelliteComparePanel';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
@@ -326,6 +327,8 @@ export default function Dashboard() {
   }, [navSession]);
   const [showRemote, setShowRemote] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
+  const [showSatelliteCompare, setShowSatelliteCompare] = useState(false);
+  const [activeSatelliteImagery, setActiveSatelliteImagery] = useState<any>(null);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
   /* What Live Transit can see right now, for its row in the layer panel. */
   const [transitStatus, setTransitStatus] = useState<TransitStatus | null>(null);
@@ -1419,101 +1422,27 @@ export default function Dashboard() {
 
 
 
-            {/* ── Geometric tactical logo ── */}
-            <div className="relative w-40 h-40 mb-8 flex items-center justify-center z-[2]">
-              {/* Outer ring — slow clockwise */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.6, rotate: 0 }}
-                animate={{ opacity: 1, scale: 1, rotate: 360 }}
-                transition={{ opacity: { duration: 0.6 }, scale: { duration: 0.8, ease: 'easeOut' }, rotate: { duration: 20, repeat: Infinity, ease: 'linear' } }}
-                className="absolute inset-0 rounded-full"
-                style={{ border: '1px solid rgba(212,175,55,0.2)' }}
-              >
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 12px var(--gold-primary), 0 0 24px rgba(0,229,255,0.3)' }} />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(212,175,55,0.5)', boxShadow: '0 0 6px rgba(0,229,255,0.3)' }} />
-              </motion.div>
-
-              {/* Middle ring — faster counter-clockwise */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.4, rotate: 0 }}
-                animate={{ opacity: 1, scale: 1, rotate: -360 }}
-                transition={{ opacity: { duration: 0.6, delay: 0.15 }, scale: { duration: 0.8, delay: 0.15, ease: 'easeOut' }, rotate: { duration: 12, repeat: Infinity, ease: 'linear' } }}
-                className="absolute rounded-full"
-                style={{ inset: '18px', border: '1px solid rgba(0,229,255,0.15)' }}
-              >
-                <div className="absolute top-1/2 right-0 translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 10px var(--cyan-primary), 0 0 20px rgba(0,229,255,0.2)' }} />
-                <div className="absolute bottom-0 left-1/4 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(0,229,255,0.4)' }} />
-              </motion.div>
-
-              {/* Inner ring — fastest clockwise */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.2, rotate: 0 }}
-                animate={{ opacity: 1, scale: 1, rotate: 360 }}
-                transition={{ opacity: { duration: 0.6, delay: 0.3 }, scale: { duration: 0.8, delay: 0.3, ease: 'easeOut' }, rotate: { duration: 7, repeat: Infinity, ease: 'linear' } }}
-                className="absolute rounded-full"
-                style={{ inset: '40px', border: '1px solid rgba(0,229,255,0.25)' }}
-              >
-                <div className="absolute top-0 left-1/4 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 8px var(--cyan-primary)' }} />
-              </motion.div>
-
-              {/* Core circle + crosshair */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
-                className="relative w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ border: '2px solid var(--cyan-primary)', boxShadow: '0 0 20px rgba(0,229,255,0.35), inset 0 0 20px rgba(0,229,255,0.1)' }}
-              >
-                <motion.div
-                  animate={{ opacity: [0.3, 0.8, 0.3] }}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                  className="w-5 h-5 rounded-full"
-                  style={{ background: 'radial-gradient(circle, rgba(0,229,255,0.4) 0%, rgba(0,229,255,0.05) 70%)' }}
-                />
-                {/* Crosshair lines */}
-                <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(0,229,255,0.3), transparent)' }} />
-                <div className="absolute w-full h-[1px]" style={{ background: 'linear-gradient(to right, transparent, rgba(0,229,255,0.3), transparent)' }} />
-              </motion.div>
-
-              {/* Faint pulsing radar sweep */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 0.15, 0], rotate: [0, 360] }}
-                transition={{ opacity: { duration: 3, repeat: Infinity }, rotate: { duration: 3, repeat: Infinity, ease: 'linear' }, delay: 0.6 }}
-                className="absolute inset-[10px] rounded-full"
-                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(0,229,255,0.2) 40deg, transparent 80deg)' }}
+            {/* ── Exact ORBINEX 3D Brand Logo ── */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.88, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+              className="mb-8 z-[2] flex flex-col items-center"
+            >
+              <img
+                src="/brand/orbinex-logo-exact-transparent.png"
+                alt="ORBINEX — See the World. Understand the Change."
+                className="h-20 md:h-24 w-auto object-contain drop-shadow-[0_0_40px_rgba(0,229,255,0.6)]"
               />
-            </div>
-
-            {/* ── OSIRIS title — letter-by-letter stagger ── */}
-            <div className="flex items-center gap-[2px] mb-3 z-[2]">
-              {'ORBINEX'.split('').map((letter, i) => (
-                <motion.span
-                  key={i}
-                  initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  transition={{ delay: 0.5 + i * 0.08, duration: 0.5, ease: 'easeOut' }}
-                  className="text-4xl md:text-5xl font-bold tracking-[0.5em] font-mono"
-                  style={{ color: '#00E5FF', textShadow: '0 0 30px rgba(0,229,255,0.5), 0 0 60px rgba(0,229,255,0.25)' }}
-                >
-                  {letter}
-                </motion.span>
-              ))}
-            </div>
-
-            {/* ── Subtitle — typewriter reveal ── */}
-            <div className="overflow-hidden mb-8 z-[2]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: '100%' }}
-                transition={{ delay: 1.2, duration: 0.8, ease: 'easeInOut' }}
-                className="overflow-hidden whitespace-nowrap"
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.9 }}
+                transition={{ delay: 0.6, duration: 0.6 }}
+                className="mt-3 text-[10px] md:text-[10px] font-mono tracking-[0.3em] text-[#00E5FF] uppercase font-semibold text-center"
               >
-                <p className="text-[10px] md:text-[9.5px] font-mono tracking-[0.3em] text-[#00E5FF] uppercase font-semibold" style={{ opacity: 0.9 }}>
-                  GLOBAL GEOSPATIAL INTELLIGENCE PLATFORM
-                </p>
-              </motion.div>
-            </div>
+                GLOBAL GEOSPATIAL INTELLIGENCE PLATFORM
+              </motion.p>
+            </motion.div>
 
             {/* ── Multi-stage progress bar ── */}
             <div className="w-64 md:w-80 z-[2]">
@@ -1605,6 +1534,7 @@ export default function Dashboard() {
           scanTargets={scanTargets}
           demoMode={demoMode}
           theme={osirisTheme}
+          satelliteImageryLayer={activeSatelliteImagery}
           arcgisLayers={arcgisLayers.filter(l => l.visible).map(l => ({ id: l.id, title: l.title, geojson: l.geojson, color: l.color, opacity: l.opacity }))}
           onMapCenter={setMapCenter}
           onTransitStatus={setTransitStatus}
@@ -1770,21 +1700,20 @@ export default function Dashboard() {
       </motion.div>
 
       {/* ── HEADER ── */}
-      <motion.div data-hud initial={{ opacity: 0, y: -20 }} animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }} transition={hudIn(0.15)} className={`absolute top-4 z-[200] pointer-events-none flex flex-col`} style={{ left: isMobile ? '24px' : '64px', right: '24px' }}>
-        <div className="flex items-center gap-3 w-fit">
-          <OrbinexLogo className="w-8 h-8 md:w-10 md:h-10" />
-          <div className="flex flex-col items-start gap-0.5">
-            <h1 className="text-lg md:text-xl font-bold tracking-[0.4em] text-[#00E5FF] font-mono drop-shadow-[0_0_12px_rgba(0,229,255,0.45)]">{BRAND.name}</h1>
-            <span className="text-[9px] md:text-[10px] font-mono tracking-[0.2em] opacity-90 uppercase text-[var(--gold-primary)]">{BRAND.tagline}</span>
-          </div>
+      <motion.div data-hud initial={{ opacity: 0, y: -20 }} animate={revealed ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }} transition={hudIn(0.15)} className={`absolute top-3.5 z-[200] pointer-events-none flex flex-col`} style={{ left: isMobile ? '20px' : '56px' }}>
+        <div className="flex items-center">
+          <img
+            src="/brand/orbinex-logo-exact-transparent.png"
+            alt="ORBINEX — See the World. Understand the Change."
+            className="h-10 md:h-12 w-auto object-contain filter drop-shadow-[0_0_20px_rgba(0,229,255,0.4)]"
+          />
         </div>
-        <div className="flex items-center gap-3 mt-1.5 pl-[44px] min-w-0 pr-4">
-          <span className="text-[9px] md:text-[9px] text-[var(--text-muted)] font-mono tracking-[0.2em] md:tracking-[0.3em] uppercase opacity-60 truncate">
-            {BRAND.description} <span className="hidden md:inline">· {BRAND.keywords}</span>
+        <div className="flex items-center gap-3 mt-1 pl-1 min-w-0 pr-4">
+          <span className="text-[8.5px] md:text-[9px] text-[#00E5FF]/70 font-mono tracking-[0.2em] md:tracking-[0.28em] uppercase truncate">
+            {BRAND.description} <span className="hidden md:inline text-white/40">· {BRAND.keywords}</span>
           </span>
         </div>
       </motion.div>
-
 
       {/* ── TOP-RIGHT STATUS (desktop) ── */}
       <motion.div data-hud initial={{ opacity: 0 }} animate={{ opacity: revealed ? 1 : 0 }} transition={hudIn(0.35)} className="status-bar-desktop absolute top-4 right-6 z-[200] pointer-events-none flex items-center gap-3 text-[10px] font-mono tracking-widest text-[var(--text-muted)]">
@@ -1862,7 +1791,10 @@ export default function Dashboard() {
         </div>
 
         <div className="relative group">
-          <button onClick={() => { setShowIntel(false); setShowOi(false); setShowAlerts(false); setShowMarkets(false); setShowSpaceCam(v => !v); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showSpaceCam ? 'bg-[#00E5FF]/20' : 'hover:bg-white/10'}`} title="Live from Space — 24/7 video downlink from the ISS" aria-label="Live from Space" aria-expanded={showSpaceCam}>
+          <button onClick={() => { setShowSatelliteCompare(v => !v); setShowIntel(false); setShowOi(false); setShowAlerts(false); setShowMarkets(false); setShowSpaceCam(false); setShowDrawing(false); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showSatelliteCompare ? 'bg-[#00E5FF]/20 text-[#00E5FF]' : 'hover:bg-white/10 text-white/60'}`} title="Satellite Intelligence & Historical Comparison — Sentinel-1/2, NASA GIBS" aria-label="Satellite Intelligence & Comparison" aria-expanded={showSatelliteCompare}>
+              <Satellite className="w-4 h-4 text-[#00E5FF]" />
+            </button>
+            <button onClick={() => { setShowIntel(false); setShowOi(false); setShowAlerts(false); setShowMarkets(false); setShowSpaceCam(v => !v); }} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showSpaceCam ? 'bg-[#00E5FF]/20' : 'hover:bg-white/10'}`} title="Live from Space — 24/7 video downlink from the ISS" aria-label="Live from Space" aria-expanded={showSpaceCam}>
             <Radio className={`w-4 h-4 ${showSpaceCam ? 'text-[#00E5FF]' : 'text-white/60'}`} />
             {showSpaceCam && (
               <span
@@ -2371,6 +2303,32 @@ export default function Dashboard() {
           />
         </div>
       )}
+
+      <SatelliteComparePanel
+        isOpen={showSatelliteCompare}
+        onClose={() => setShowSatelliteCompare(false)}
+        onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
+        onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity }) => {
+          if (afterScene?.coordinates && afterScene?.thumbnailUrl) {
+            setActiveSatelliteImagery({
+              id: afterScene.id,
+              type: 'image',
+              url: `/api/satellite/asset?url=${encodeURIComponent(afterScene.thumbnailUrl)}`,
+              coordinates: afterScene.coordinates,
+              opacity,
+              visible: true,
+            });
+          } else if (tileUrl) {
+            setActiveSatelliteImagery({
+              id: 'nasa-gibs-layer',
+              type: 'raster',
+              tileUrl,
+              opacity,
+              visible: true,
+            });
+          }
+        }}
+      />
 
       {/* ── OVERLAYS ── */}
       <div className="vignette absolute inset-0 pointer-events-none z-[2]" />
