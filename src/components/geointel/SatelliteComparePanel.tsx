@@ -30,6 +30,8 @@ import { searchPlaces } from '@/lib/geosearch';
 
 const QUICK_GLOBAL_CHIPS = [
   { label: 'New York, USA', q: 'New York, USA', lat: 40.7128, lng: -74.0060, zoom: 12 },
+  { label: 'London, United Kingdom', q: 'London, United Kingdom', lat: 51.5074, lng: -0.1278, zoom: 12 },
+  { label: 'Tokyo, Japan', q: 'Tokyo, Japan', lat: 35.6762, lng: 139.6503, zoom: 12 },
   { label: 'Amazon Rainforest', q: 'Amazon Rainforest, Brazil', lat: -3.4653, lng: -62.2159, zoom: 10 },
   { label: 'Sahara Desert', q: 'Sahara Desert, Africa', lat: 23.4162, lng: 12.0000, zoom: 9 },
   { label: 'Bengaluru, India', q: 'Bengaluru, India', lat: 12.9716, lng: 77.5946, zoom: 12 },
@@ -234,6 +236,28 @@ export default function SatelliteComparePanel({
     }
   };
 
+  // Debounced real-time global geocoding
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed || trimmed.length < 3) {
+      if (!trimmed) {
+        setSearchResults([]);
+        setShowDropdown(false);
+      }
+      return;
+    }
+
+    if (parseCoordinates(trimmed)) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      handleExecuteSearch();
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
   const handleProjectScene = async (scene: SatelliteScene, processFirst: boolean = false) => {
     if (!scene.thumbnailUrl) return;
     setProjectedSceneId(scene.id);
@@ -356,7 +380,7 @@ export default function SatelliteComparePanel({
             <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
               <span className="flex items-center gap-1.5">
                 <Globe className="w-3 h-3 text-[#00E5FF]" />
-                <span>Global Location Search (Worldwide)</span>
+                <span className="text-white font-bold tracking-widest">GLOBAL LOCATION SEARCH</span>
               </span>
               <span className="text-[8.5px] text-[#00E5FF]/70">Text or Lat, Lng</span>
             </div>
@@ -378,7 +402,7 @@ export default function SatelliteComparePanel({
                       handleExecuteSearch();
                     }
                   }}
-                  placeholder="City, country, or 40.7128, -74.0060"
+                  placeholder="Search any location worldwide..."
                   className="w-full bg-black/60 border border-white/20 rounded pl-7 pr-6 py-1.5 text-white text-[11px] placeholder:text-slate-500 focus:outline-none focus:border-[#00E5FF] transition-all"
                 />
                 {searchQuery && (
@@ -397,14 +421,14 @@ export default function SatelliteComparePanel({
               <button
                 onClick={() => handleExecuteSearch()}
                 disabled={searching || !searchQuery.trim()}
-                className="px-3 py-1.5 bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/50 rounded text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all disabled:opacity-40"
+                className="px-3 py-1.5 bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/50 rounded text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all disabled:opacity-40"
               >
                 {searching ? (
                   <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#00E5FF]" />
                 ) : (
-                  <Navigation className="w-2.5 h-2.5 text-[#00E5FF]" />
+                  <Search className="w-2.5 h-2.5 text-[#00E5FF]" />
                 )}
-                <span>Locate</span>
+                <span>SEARCH</span>
               </button>
             </div>
 

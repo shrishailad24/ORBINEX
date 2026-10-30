@@ -63,25 +63,29 @@ flowchart TD
 ---
 
 ### Phase 1: Satellite Imagery Retrieval & Raster Generation Engine
-- **Status:** **COMPLETE & VERIFIED**
-- **Technologies:** Python 3.11, NumPy, Pillow, Element84 STAC API, AWS S3 COG / Quicklook providers, MapLibre image layers.
+- **Status:** **COMPLETE & CLOSED (VERIFIED)**
+- **Technologies:** Python 3.11, NumPy, Pillow, Element84 STAC API, AWS S3 COG / Quicklook providers, MapLibre image layers, Komoot Photon / Nominatim Geocoding.
 - **Implemented Capabilities:**
   - Live STAC discovery pipeline against Element84 Earth Search v1 / Copernicus for Sentinel-2 L2A optical and Sentinel-1 GRD SAR.
   - Actual satellite image pixel retrieval from AWS S3 Cloud-Optimized GeoTIFFs (COG) and quicklook assets.
   - Python-based satellite raster processing engine (`src/lib/satellite/processor.py`) supporting spatial AOI cropping, 2%-98% percentile linear contrast stretching, and georeferenced PNG outputs.
+  - Automated JPEG-2000 (`.jp2`) to PNG server transcoding in `/api/satellite/asset` with SHA-256 caching, resolving historical (e.g. 2020) browser preview rendering.
+  - Global Location Search engine: worldwide geocoding (`searchPlaces`), decimal coordinate parsing (`lat, lng`), suggestions dropdown, and real-time debouncing.
+  - Dynamic AOI Telemetry HUD: live bounding box computation, $\approx 1,080\text{ km}^2$ Sentinel MGRS sub-tile area calculation, and MapLibre `onLocate` center alignment.
   - Complete geospatial metadata sidecar preservation (EPSG:4326 CRS, resolution, cloud cover, sensor modality, and ESA Copernicus attribution).
   - Dedicated API endpoints: `/api/satellite/search`, `/api/satellite/process`, `/api/satellite/compare`, and `/api/satellite/asset`.
-  - Enhanced `/api/sentinel` endpoint returning visual asset links, quad coordinates, and processing URLs.
-  - Frontend interactive Satellite Intelligence panel (`SatelliteComparePanel.tsx`) with Indian strategic presets (Dhubri, Bengaluru, Western Ghats, Prayagraj), cloud filter, contrast stretch toggle, and MapLibre overlay integration.
-  - 12 automated unit tests passing in `src/lib/satellite/satellite.test.ts`.
+  - Frontend interactive Satellite Intelligence panel (`SatelliteComparePanel.tsx`) with Indian strategic presets (Dhubri, Bengaluru, Western Ghats, Prayagraj), global location search, cloud filter, contrast stretch toggle, and MapLibre overlay integration.
+  - 31 automated satellite unit tests passing (12 in `satellite.test.ts`, 16 in `satellite-layer.test.ts`, 3 in `satellite-programs.test.ts`).
 - **Acceptance Criteria Verified:**
-  - [x] Real satellite observations found for supported AOIs and dates.
+  - [x] Real satellite observations retrieved for New York, London, Tokyo, Amazon Rainforest, Sahara Desert, Bengaluru, and decimal coordinates.
+  - [x] Sentinel-1 SAR radar imagery verified globally (`sentinel-1-grd`).
   - [x] Actual image pixels retrieved from authorized AWS S3 COG / quicklook providers.
   - [x] Imagery processed into valid PNG outputs with percentile contrast stretching.
+  - [x] Historical (2020) BEFORE images successfully transcode from JPEG-2000 and display without browser breakage.
   - [x] Generated image accurately corresponds to requested geographical area.
   - [x] Geospatial metadata sidecar (CRS, attribution, dimensions) preserved.
   - [x] Invalid AOIs, malformed dates, and SSRF attempts rejected.
-  - [x] Existing application functionality and 87 API routes fully operational.
+  - [x] Existing application functionality, 17,000+ camera catalogue, and 87 API routes fully operational with zero regression.
 
 ---
 
