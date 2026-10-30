@@ -18,10 +18,23 @@ import {
   Maximize2,
   Download,
   Sparkles,
-  Info
+  Info,
+  Search,
+  Globe,
+  Navigation,
+  Crosshair
 } from 'lucide-react';
 import { STRATEGIC_PRESETS, type StrategicLocationPreset } from '@/lib/satellite/historical-providers';
 import { type HistoricalComparisonPair, type SatelliteScene } from '@/lib/satellite/types';
+import { searchPlaces } from '@/lib/geosearch';
+
+const QUICK_GLOBAL_CHIPS = [
+  { label: 'New York, USA', q: 'New York, USA', lat: 40.7128, lng: -74.0060, zoom: 12 },
+  { label: 'Amazon Rainforest', q: 'Amazon Rainforest, Brazil', lat: -3.4653, lng: -62.2159, zoom: 10 },
+  { label: 'Sahara Desert', q: 'Sahara Desert, Africa', lat: 23.4162, lng: 12.0000, zoom: 9 },
+  { label: 'Bengaluru, India', q: 'Bengaluru, India', lat: 12.9716, lng: 77.5946, zoom: 12 },
+  { label: '40.7128, -74.0060', q: '40.7128, -74.0060', lat: 40.7128, lng: -74.0060, zoom: 12 },
+];
 
 interface SatelliteComparePanelProps {
   isOpen: boolean;
@@ -42,15 +55,43 @@ export default function SatelliteComparePanel({
   onLocate,
   onProjectImagery,
 }: SatelliteComparePanelProps) {
-  const [selectedPreset, setSelectedPreset] = useState<StrategicLocationPreset>(STRATEGIC_PRESETS[0]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(STRATEGIC_PRESETS[0].id);
+  const [activeLocation, setActiveLocation] = useState<{
+    id?: string;
+    name: string;
+    focus?: string;
+    lat: number;
+    lng: number;
+    defaultZoom?: number;
+  }>({
+    id: STRATEGIC_PRESETS[0].id,
+    name: STRATEGIC_PRESETS[0].name,
+    focus: STRATEGIC_PRESETS[0].region,
+    lat: STRATEGIC_PRESETS[0].lat,
+    lng: STRATEGIC_PRESETS[0].lng,
+    defaultZoom: STRATEGIC_PRESETS[0].defaultZoom,
+  });
+
   const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS'>('Sentinel-2');
-  const [beforeDate, setBeforeDate] = useState(selectedPreset.suggestedBeforeDate);
-  const [afterDate, setAfterDate] = useState(selectedPreset.suggestedAfterDate);
+  const [beforeDate, setBeforeDate] = useState(STRATEGIC_PRESETS[0].suggestedBeforeDate);
+  const [afterDate, setAfterDate] = useState(STRATEGIC_PRESETS[0].suggestedAfterDate);
   const [maxCloudCover, setMaxCloudCover] = useState(20);
   const [opacity, setOpacity] = useState(85);
   const [contrastStretch, setContrastStretch] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+
+  // Global search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<Array<{
+    name: string;
+    context: string;
+    lat: number;
+    lng: number;
+  }>>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,8 +104,8 @@ export default function SatelliteComparePanel({
     setProcessedImageUrl(null);
     try {
       const params = new URLSearchParams({
-        lat: selectedPreset.lat.toString(),
-        lng: selectedPreset.lng.toString(),
+        lat: activeLocation.lat.toString(),
+        lng: activeLocation.lng.toString(),
         before: beforeDate,
         after: afterDate,
         platform,
@@ -92,20 +133,105 @@ export default function SatelliteComparePanel({
     } finally {
       setLoading(false);
     }
-  }, [selectedPreset, beforeDate, afterDate, platform, opacity, onProjectImagery]);
+  }, [activeLocation.lat, activeLocation.lng, beforeDate, afterDate, platform, opacity, onProjectImagery]);
 
-  // Initial fetch on preset selection
+  // Initial fetch on location or platform change
   useEffect(() => {
     if (isOpen) {
       fetchComparison();
     }
-  }, [isOpen, selectedPreset, platform]);
+  }, [isOpen, activeLocation.lat, activeLocation.lng, platform]);
+
+  const parseCoordinates = (input: string): { lat: number; lng: number } | null => {
+    const trimmed = input.trim();
+    const match = trimmed.match(/^([-+]?\d{1,2}(?:\.\d+)?)[,\s]+([-+]?\d{1,3}(?:\.\d+)?)$/);
+    if (match) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[2]);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+    return null;
+  };
+
+  const handleSelectCustomLocation = (name: string, focus: string, lat: number, lng: number, zoom = 12) => {
+    setSelectedPresetId(null);
+    setActiveLocation({
+      id: undefined,
+      name,
+      focus,
+      lat,
+      lng,
+      defaultZoom: zoom,
+    });
+    setShowDropdown(false);
+    setSearchError(null);
+    onLocate?.(lat, lng, zoom);
+  };
 
   const handleSelectPreset = (preset: StrategicLocationPreset) => {
-    setSelectedPreset(preset);
+    setSelectedPresetId(preset.id);
+    setActiveLocation({
+      id: preset.id,
+      name: preset.name,
+      focus: preset.region,
+      lat: preset.lat,
+      lng: preset.lng,
+      defaultZoom: preset.defaultZoom,
+    });
     setBeforeDate(preset.suggestedBeforeDate);
     setAfterDate(preset.suggestedAfterDate);
     onLocate?.(preset.lat, preset.lng, preset.defaultZoom);
+  };
+
+  const handleExecuteSearch = async (overrideQuery?: string) => {
+    const query = (overrideQuery ?? searchQuery).trim();
+    if (!query) return;
+
+    setSearchError(null);
+
+    // 1. Check if coordinate format
+    const coords = parseCoordinates(query);
+    if (coords) {
+      const name = `Coordinates [${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}]`;
+      handleSelectCustomLocation(name, 'Custom Coordinate AOI', coords.lat, coords.lng, 12);
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    // 2. Otherwise run global geosearch
+    setSearching(true);
+    try {
+      let results: any[] = [];
+      try {
+        results = await searchPlaces(query);
+      } catch {
+        const res = await fetch(`/api/geosearch?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          results = data.results || [];
+        }
+      }
+
+      if (results && results.length > 0) {
+        setSearchResults(results.map((r: any) => ({
+          name: r.name,
+          context: r.context,
+          lat: r.lat,
+          lng: r.lng,
+        })));
+        setShowDropdown(true);
+      } else {
+        setSearchResults([]);
+        setSearchError(`No locations found for "${query}". Try decimal coordinates (e.g. 40.7128, -74.0060).`);
+      }
+    } catch (err) {
+      setSearchError('Search failed. Check connection or enter lat, lng directly.');
+    } finally {
+      setSearching(false);
+    }
   };
 
   const handleProjectScene = async (scene: SatelliteScene, processFirst: boolean = false) => {
@@ -125,10 +251,10 @@ export default function SatelliteComparePanel({
           params.set('sceneBbox', scene.bbox.join(','));
           // Center AOI
           params.set('aoiBbox', [
-            selectedPreset.lng - 0.15,
-            selectedPreset.lat - 0.15,
-            selectedPreset.lng + 0.15,
-            selectedPreset.lat + 0.15,
+            activeLocation.lng - 0.15,
+            activeLocation.lat - 0.15,
+            activeLocation.lng + 0.15,
+            activeLocation.lat + 0.15,
           ].join(','));
         }
 
@@ -213,15 +339,149 @@ export default function SatelliteComparePanel({
                   key={preset.id}
                   onClick={() => handleSelectPreset(preset)}
                   className={`p-2 rounded text-left border transition-all ${
-                    selectedPreset.id === preset.id
+                    selectedPresetId === preset.id
                       ? 'border-[#00E5FF] bg-[#00E5FF]/15 text-white shadow-[0_0_12px_rgba(0,229,255,0.2)]'
                       : 'border-white/10 bg-white/[0.02] text-slate-400 hover:border-white/20 hover:text-slate-200'
                   }`}
                 >
                   <div className="text-[10.5px] font-bold truncate">{preset.name}</div>
-                  <div className="text-[8.5px] text-[#00E5FF]/80 truncate mt-0.5">{preset.focus}</div>
+                  <div className="text-[8.5px] text-[#00E5FF]/80 truncate mt-0.5">{preset.region}</div>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Global Location Search & Custom AOI */}
+          <div className="space-y-2 p-2.5 rounded-lg bg-black/40 border border-white/10">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+              <span className="flex items-center gap-1.5">
+                <Globe className="w-3 h-3 text-[#00E5FF]" />
+                <span>Global Location Search (Worldwide)</span>
+              </span>
+              <span className="text-[8.5px] text-[#00E5FF]/70">Text or Lat, Lng</span>
+            </div>
+
+            {/* Search Input Bar */}
+            <div className="flex gap-1.5 relative">
+              <div className="relative flex-1">
+                <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (searchError) setSearchError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleExecuteSearch();
+                    }
+                  }}
+                  placeholder="City, country, or 40.7128, -74.0060"
+                  className="w-full bg-black/60 border border-white/20 rounded pl-7 pr-6 py-1.5 text-white text-[11px] placeholder:text-slate-500 focus:outline-none focus:border-[#00E5FF] transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowDropdown(false);
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={() => handleExecuteSearch()}
+                disabled={searching || !searchQuery.trim()}
+                className="px-3 py-1.5 bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/50 rounded text-white text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 transition-all disabled:opacity-40"
+              >
+                {searching ? (
+                  <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#00E5FF]" />
+                ) : (
+                  <Navigation className="w-2.5 h-2.5 text-[#00E5FF]" />
+                )}
+                <span>Locate</span>
+              </button>
+            </div>
+
+            {/* Quick Global Chips */}
+            <div className="space-y-1">
+              <div className="text-[8.5px] text-slate-500 uppercase tracking-widest">Global Presets:</div>
+              <div className="flex flex-wrap gap-1">
+                {QUICK_GLOBAL_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    onClick={() => {
+                      setSearchQuery(chip.q);
+                      handleSelectCustomLocation(chip.label, 'Quick Global Preset', chip.lat, chip.lng, chip.zoom);
+                    }}
+                    className="px-1.5 py-0.5 rounded bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[8.5px] text-slate-300 hover:text-white transition-all flex items-center gap-1"
+                  >
+                    <Crosshair className="w-2.5 h-2.5 text-[#00E5FF]/70" />
+                    <span>{chip.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Search Results Dropdown */}
+            {showDropdown && searchResults.length > 0 && (
+              <div className="mt-1.5 max-h-40 overflow-y-auto rounded bg-[#0A101D] border border-[#00E5FF]/40 shadow-xl space-y-1 p-1">
+                {searchResults.map((res, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      handleSelectCustomLocation(res.name, res.context || 'Custom Location', res.lat, res.lng, 12);
+                    }}
+                    className="w-full text-left p-1.5 rounded hover:bg-white/10 transition-colors flex items-start gap-1.5 text-[10px]"
+                  >
+                    <MapPin className="w-3 h-3 text-[#00E5FF] mt-0.5 shrink-0" />
+                    <div className="truncate flex-1">
+                      <div className="font-bold text-white truncate">{res.name}</div>
+                      {res.context && <div className="text-[8.5px] text-slate-400 truncate">{res.context}</div>}
+                      <div className="text-[8px] text-[#00E5FF]/70 font-mono mt-0.5">
+                        {res.lat.toFixed(4)}°, {res.lng.toFixed(4)}°
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Search Error */}
+            {searchError && (
+              <div className="text-[9.5px] text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded p-1.5">
+                {searchError}
+              </div>
+            )}
+
+            {/* Active AOI Telemetry HUD */}
+            <div className="p-2 rounded bg-white/[0.02] border border-white/10 space-y-1 text-[9.5px]">
+              <div className="flex items-center justify-between text-slate-400 font-semibold">
+                <span className="flex items-center gap-1 text-[#00E5FF]">
+                  <Crosshair className="w-2.5 h-2.5 text-[#00E5FF] animate-pulse" />
+                  <span>ACTIVE AOI TARGET</span>
+                </span>
+                <span className="text-[8.5px] text-cyan-400 font-mono">
+                  {activeLocation.lat.toFixed(4)}°, {activeLocation.lng.toFixed(4)}°
+                </span>
+              </div>
+              <div className="font-bold text-white truncate text-[10.5px]">
+                {activeLocation.name}
+              </div>
+              {activeLocation.focus && (
+                <div className="text-[8.5px] text-[#00E5FF]/80 truncate">
+                  {activeLocation.focus}
+                </div>
+              )}
+              <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[8px] text-slate-400 font-mono">
+                <span>BBOX: [{(activeLocation.lng - 0.15).toFixed(2)}, {(activeLocation.lat - 0.15).toFixed(2)}, {(activeLocation.lng + 0.15).toFixed(2)}, {(activeLocation.lat + 0.15).toFixed(2)}]</span>
+                <span className="text-emerald-400 font-bold">~1,080 km² AOI</span>
+              </div>
             </div>
           </div>
 

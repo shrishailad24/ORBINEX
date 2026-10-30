@@ -50,7 +50,7 @@ export async function GET(request: Request) {
           stretch: false,
           platform: 'Sentinel-2',
         });
-        return new NextResponse(processed.imageBuffer, {
+        return new NextResponse(new Uint8Array(processed.imageBuffer), {
           status: 200,
           headers: {
             'Content-Type': 'image/png',
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
           stretch: false,
           platform: 'Sentinel-2',
         });
-        return new NextResponse(processed.imageBuffer, {
+        return new NextResponse(new Uint8Array(processed.imageBuffer), {
           status: 200,
           headers: {
             'Content-Type': 'image/png',

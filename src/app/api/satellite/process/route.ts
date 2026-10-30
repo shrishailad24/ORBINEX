@@ -66,7 +66,7 @@ export async function GET(req: Request) {
     }
 
     // Binary Image Stream
-    return new NextResponse(result.imageBuffer, {
+    return new NextResponse(new Uint8Array(result.imageBuffer), {
       status: 200,
       headers: {
         'Content-Type': 'image/png',
