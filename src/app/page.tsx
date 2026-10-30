@@ -239,6 +239,16 @@ export default function Dashboard() {
   const [watchEvents, setWatchEvents] = useState<WatchEvent[]>([]);
   const watchBaselines = useRef<Record<string, WatchBaseline>>({});
   const [selectedPolygon, setSelectedPolygon] = useState<string | null>(null);
+  const [satelliteDrawnAOI, setSatelliteDrawnAOI] = useState<{
+    id: string;
+    name: string;
+    kind: string;
+    coords: number[][];
+    bbox: [number, number, number, number];
+    center: [number, number];
+    areaKm2: number;
+  } | null>(null);
+  const [isDrawingSatelliteAOI, setIsDrawingSatelliteAOI] = useState(false);
   const [showDesktopSearch, setShowDesktopSearch] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   // A destination Search hands to Directions ("Directions to here"); its stamp remounts the planner with it.
@@ -964,6 +974,32 @@ export default function Dashboard() {
     // with an accidental second AOI from the click that dismisses the first.
     setDrawMode(null);
     setDrawProgress(null);
+
+    const coords = result.coords;
+    if (coords && coords.length >= 2) {
+      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+      for (const pt of coords) {
+        const [lng, lat] = pt;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+
+      setSatelliteDrawnAOI({
+        id: `aoi-drawn-${Date.now()}`,
+        name: `Drawn AOI (${((maxLng - minLng) * 111 * (maxLat - minLat) * 111).toFixed(1)} km²)`,
+        kind: result.kind,
+        coords,
+        bbox: [minLng, minLat, maxLng, maxLat],
+        center: [centerLat, centerLng],
+        areaKm2: Math.max(0.1, (maxLng - minLng) * 111 * (maxLat - minLat) * 111),
+      });
+      setIsDrawingSatelliteAOI(false);
+      setShowSatelliteCompare(true);
+    }
   }, []);
 
   const handleExportGeoJSON = useCallback(() => {
@@ -2306,7 +2342,16 @@ export default function Dashboard() {
 
       <SatelliteComparePanel
         isOpen={showSatelliteCompare}
-        onClose={() => setShowSatelliteCompare(false)}
+        onClose={() => {
+          setShowSatelliteCompare(false);
+          setIsDrawingSatelliteAOI(false);
+        }}
+        onStartDrawAOI={(mode) => {
+          setIsDrawingSatelliteAOI(true);
+          setDrawMode(mode || 'rectangle');
+        }}
+        drawnAOI={satelliteDrawnAOI}
+        onClearDrawnAOI={() => setSatelliteDrawnAOI(null)}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
         onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl }) => {
           const scene = afterScene || beforeScene;

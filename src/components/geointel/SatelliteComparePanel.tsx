@@ -22,7 +22,11 @@ import {
   Search,
   Globe,
   Navigation,
-  Crosshair
+  Crosshair,
+  Square,
+  Pentagon,
+  SlidersHorizontal,
+  BarChart3
 } from 'lucide-react';
 import { STRATEGIC_PRESETS, type StrategicLocationPreset } from '@/lib/satellite/historical-providers';
 import { type HistoricalComparisonPair, type SatelliteScene } from '@/lib/satellite/types';
@@ -49,6 +53,17 @@ interface SatelliteComparePanelProps {
     opacity: number;
     processedImageUrl?: string;
   }) => void;
+  onStartDrawAOI?: (mode: 'rectangle' | 'polygon') => void;
+  drawnAOI?: {
+    id: string;
+    name: string;
+    kind: string;
+    coords: number[][];
+    bbox: [number, number, number, number];
+    center: [number, number];
+    areaKm2: number;
+  } | null;
+  onClearDrawnAOI?: () => void;
 }
 
 export default function SatelliteComparePanel({
@@ -56,6 +71,9 @@ export default function SatelliteComparePanel({
   onClose,
   onLocate,
   onProjectImagery,
+  onStartDrawAOI,
+  drawnAOI,
+  onClearDrawnAOI,
 }: SatelliteComparePanelProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(STRATEGIC_PRESETS[0].id);
   const [activeLocation, setActiveLocation] = useState<{
@@ -99,6 +117,70 @@ export default function SatelliteComparePanel({
   const [error, setError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<HistoricalComparisonPair | null>(null);
   const [projectedSceneId, setProjectedSceneId] = useState<string | null>(null);
+
+  // Interactive Split Slider & Change Analysis state
+  const [sliderPos, setSliderPos] = useState(50);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisReport, setAnalysisReport] = useState<any | null>(null);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
+  // Automatic Geographical Identification for drawn AOI
+  useEffect(() => {
+    if (!drawnAOI) return;
+    const [centerLat, centerLng] = drawnAOI.center;
+    setSelectedPresetId(null);
+    setAnalysisReport(null);
+
+    fetch(`/api/geo/reverse?lat=${centerLat}&lng=${centerLng}`)
+      .then(res => res.json())
+      .then(data => {
+        const placeName = data.label || `Drawn AOI [${centerLat.toFixed(3)}°, ${centerLng.toFixed(3)}°]`;
+        setActiveLocation({
+          id: drawnAOI.id,
+          name: placeName,
+          focus: `Custom Drawn AOI (~${drawnAOI.areaKm2.toFixed(1)} km²)`,
+          lat: centerLat,
+          lng: centerLng,
+          defaultZoom: 12,
+        });
+        onLocate?.(centerLat, centerLng, 12);
+      })
+      .catch(() => {
+        setActiveLocation({
+          id: drawnAOI.id,
+          name: `Drawn AOI [${centerLat.toFixed(3)}°, ${centerLng.toFixed(3)}°]`,
+          focus: `Custom Drawn AOI (~${drawnAOI.areaKm2.toFixed(1)} km²)`,
+          lat: centerLat,
+          lng: centerLng,
+          defaultZoom: 12,
+        });
+        onLocate?.(centerLat, centerLng, 12);
+      });
+  }, [drawnAOI, onLocate]);
+
+  const handleRunAnalysis = async () => {
+    if (!comparison?.before.matchedScene?.thumbnailUrl || !comparison?.after.matchedScene?.thumbnailUrl) return;
+    setAnalyzing(true);
+    try {
+      const areaKm2 = drawnAOI?.areaKm2 || 100.0;
+      const res = await fetch('/api/satellite/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beforeUrl: comparison.before.matchedScene.thumbnailUrl,
+          afterUrl: comparison.after.matchedScene.thumbnailUrl,
+          areaKm2,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAnalysisReport(data);
+    } catch (err: any) {
+      console.error('[ORBINEX] Analysis failed:', err);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const fetchComparison = useCallback(async () => {
     setLoading(true);
@@ -349,6 +431,81 @@ export default function SatelliteComparePanel({
 
         {/* Content Container */}
         <div className="p-4 overflow-y-auto space-y-4 text-xs scrollbar-thin scrollbar-thumb-white/10">
+          {/* Draw-to-Analyse AOI Section */}
+          <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#00E5FF]/15 via-[#00E5FF]/5 to-black/40 border border-[#00E5FF]/50 space-y-2 shadow-[0_0_20px_rgba(0,229,255,0.12)]">
+            <div className="flex items-center justify-between text-[10px] uppercase tracking-wider font-bold text-white">
+              <span className="flex items-center gap-1.5 text-[#00E5FF]">
+                <Square className="w-3.5 h-3.5 text-[#00E5FF] animate-pulse" />
+                <span className="tracking-widest">DRAW-TO-ANALYSE AOI</span>
+              </span>
+              {drawnAOI ? (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[8px] font-bold">
+                  AOI ACTIVE
+                </span>
+              ) : (
+                <span className="text-[8px] text-[#00E5FF]/80 font-mono">GLOBAL MAP</span>
+              )}
+            </div>
+
+            <p className="text-[9px] text-slate-300 leading-tight">
+              Select any unknown region directly on the globe by drawing a rectangle or polygon. ORBINEX automatically identifies the geography and retrieves satellite imagery.
+            </p>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={() => onStartDrawAOI?.('rectangle')}
+                className="py-1.5 px-2 rounded bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF] text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(0,229,255,0.2)]"
+              >
+                <Square className="w-3 h-3 text-[#00E5FF]" />
+                <span>Draw Rectangle</span>
+              </button>
+              <button
+                onClick={() => onStartDrawAOI?.('polygon')}
+                className="py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 border border-white/20 text-slate-300 hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+              >
+                <Pentagon className="w-3 h-3 text-[#00E5FF]/80" />
+                <span>Draw Polygon</span>
+              </button>
+            </div>
+
+            {drawnAOI && (
+              <div className="p-2 rounded bg-black/80 border border-emerald-500/40 space-y-1.5 text-[9px]">
+                <div className="flex items-center justify-between text-emerald-400 font-bold">
+                  <span className="flex items-center gap-1">
+                    <Crosshair className="w-2.5 h-2.5 text-emerald-400" />
+                    <span>Drawn Area: {drawnAOI.areaKm2.toFixed(1)} km²</span>
+                  </span>
+                  <button
+                    onClick={() => {
+                      onClearDrawnAOI?.();
+                      handleSelectPreset(STRATEGIC_PRESETS[0]);
+                    }}
+                    className="text-red-400 hover:text-red-300 underline text-[8px]"
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+                <div className="text-white font-bold text-[10px] truncate">
+                  {activeLocation.name}
+                </div>
+                <div className="text-slate-400 font-mono text-[7.5px] truncate">
+                  BBOX: [{drawnAOI.bbox.map((n) => n.toFixed(3)).join(', ')}]
+                </div>
+                <div className="text-cyan-400/90 text-[8px] font-mono">
+                  Center: {activeLocation.lat.toFixed(4)}°, {activeLocation.lng.toFixed(4)}°
+                </div>
+                <button
+                  onClick={fetchComparison}
+                  disabled={loading}
+                  className="w-full mt-1 py-1.5 rounded bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-500/60 text-white font-bold text-[9px] uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.25)]"
+                >
+                  <RefreshCw className={`w-3 h-3 text-emerald-400 ${loading ? 'animate-spin' : ''}`} />
+                  <span>Confirm AOI & Retrieve Satellite Imagery</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Preset Selector */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
@@ -851,6 +1008,195 @@ export default function SatelliteComparePanel({
                   </div>
                 );
               })()}
+
+              {/* Interactive Split-Screen Swipe Comparison Slider */}
+              {comparison.before.matchedScene?.thumbnailUrl && comparison.after.matchedScene?.thumbnailUrl && (
+                <div className="p-2.5 rounded bg-black/60 border border-cyan-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 uppercase font-bold tracking-wider">
+                    <span className="flex items-center gap-1.5 text-[#00E5FF]">
+                      <SlidersHorizontal className="w-3 h-3" />
+                      <span>SPLIT COMPARISON SLIDER</span>
+                    </span>
+                    <span className="text-[9px] text-[#00E5FF] font-mono">{sliderPos}%</span>
+                  </div>
+
+                  {/* Swipe Viewer Container */}
+                  <div className="relative aspect-video rounded overflow-hidden select-none border border-white/20 bg-black cursor-ew-resize">
+                    {/* AFTER IMAGE (Base layer) */}
+                    <img
+                      src={`/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`}
+                      alt="After Scene"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+
+                    {/* BEFORE IMAGE (Clipped overlay) */}
+                    <div
+                      className="absolute inset-0 overflow-hidden border-r border-[#00E5FF]"
+                      style={{ width: `${sliderPos}%` }}
+                    >
+                      <img
+                        src={`/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`}
+                        alt="Before Scene"
+                        className="absolute inset-0 max-w-none w-[346px] h-full object-cover"
+                      />
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-cyan-400 text-[8px] font-bold">
+                        BEFORE ({formatAcquisitionDate(comparison.before.matchedScene.datetime)})
+                      </div>
+                    </div>
+
+                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[#00E5FF] text-[8px] font-bold">
+                      AFTER ({formatAcquisitionDate(comparison.after.matchedScene.datetime)})
+                    </div>
+
+                    {/* Divider Line Handle */}
+                    <div
+                      className="absolute top-0 bottom-0 pointer-events-none"
+                      style={{ left: `${sliderPos}%` }}
+                    >
+                      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#00E5FF] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_8px_#00E5FF]">
+                        ⇄
+                      </div>
+                    </div>
+
+                    {/* Drag Input */}
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={sliderPos}
+                      onChange={(e) => setSliderPos(parseInt(e.target.value))}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
+                    />
+                  </div>
+
+                  <div className="flex justify-between text-[7.5px] text-slate-400">
+                    <span>◀ Drag slider left (Reveal AFTER)</span>
+                    <span>Drag slider right (Reveal BEFORE) ▶</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Automated Multi-Temporal Change Analysis */}
+              {comparison.before.matchedScene?.thumbnailUrl && comparison.after.matchedScene?.thumbnailUrl && (
+                <div className="p-2.5 rounded bg-black/60 border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 uppercase font-bold tracking-wider">
+                    <span className="flex items-center gap-1.5 text-emerald-400">
+                      <BarChart3 className="w-3 h-3" />
+                      <span>CHANGE DETECTION & SPECTRAL DELTAS</span>
+                    </span>
+                    {analysisReport && (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[8px] font-mono">
+                        CONFIDENCE {analysisReport.confidence_pct}%
+                      </span>
+                    )}
+                  </div>
+
+                  {!analysisReport ? (
+                    <button
+                      onClick={handleRunAnalysis}
+                      disabled={analyzing}
+                      className="w-full py-2 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-white font-bold text-[9.5px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                    >
+                      {analyzing ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                          <span>ANALYZING SPECTRAL DELTAS...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 text-emerald-400" />
+                          <span>RUN AUTOMATED CHANGE DETECTION</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* Summary Box */}
+                      <div className="p-2 rounded bg-white/[0.03] border border-white/10 space-y-1">
+                        <div className="flex items-center justify-between text-[8.5px]">
+                          <span className="text-slate-400">Monitored AOI Area:</span>
+                          <span className="text-white font-bold">{analysisReport.aoi_area_km2} km²</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[8.5px]">
+                          <span className="text-slate-400">Total Detected Change:</span>
+                          <span className="text-amber-400 font-bold">{analysisReport.total_change_pct}% ({analysisReport.changed_area_km2} km²)</span>
+                        </div>
+                      </div>
+
+                      {/* Spectral Metrics Grid */}
+                      <div className="grid grid-cols-3 gap-1.5 text-[8px] text-center font-mono">
+                        <div className="p-1.5 rounded bg-red-500/10 border border-red-500/30">
+                          <div className="text-red-400 font-bold">VEG LOSS</div>
+                          <div className="text-white text-[9.5px] font-bold mt-0.5">{analysisReport.metrics.vegetation_loss_pct}%</div>
+                          <div className="text-slate-400 text-[7px]">{analysisReport.metrics.vegetation_loss_km2} km²</div>
+                        </div>
+                        <div className="p-1.5 rounded bg-cyan-500/10 border border-cyan-500/30">
+                          <div className="text-cyan-400 font-bold">WATER SHIFT</div>
+                          <div className="text-white text-[9.5px] font-bold mt-0.5">{analysisReport.metrics.water_shift_pct > 0 ? `+${analysisReport.metrics.water_shift_pct}` : analysisReport.metrics.water_shift_pct}%</div>
+                          <div className="text-slate-400 text-[7px]">{analysisReport.metrics.water_shift_km2} km²</div>
+                        </div>
+                        <div className="p-1.5 rounded bg-amber-500/10 border border-amber-500/30">
+                          <div className="text-amber-400 font-bold">DISTURBANCE</div>
+                          <div className="text-white text-[9.5px] font-bold mt-0.5">{analysisReport.metrics.builtup_disturbance_pct}%</div>
+                          <div className="text-slate-400 text-[7px]">{analysisReport.metrics.builtup_disturbance_km2} km²</div>
+                        </div>
+                      </div>
+
+                      {/* Observations List */}
+                      <div className="space-y-1 text-[8.5px]">
+                        <div className="text-slate-400 font-bold uppercase text-[8px]">Key Observations:</div>
+                        <ul className="list-disc pl-3 text-slate-300 space-y-0.5">
+                          {analysisReport.findings.map((f: string, i: number) => (
+                            <li key={i}>{f}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Heatmap Preview & Toggle */}
+                      {analysisReport.heatmapBase64 && (
+                        <div className="pt-1 border-t border-white/10 space-y-1.5">
+                          <div className="flex items-center justify-between text-[8px] text-slate-400">
+                            <span>CHANGE HEATMAP (SPECTRAL DELTA MASK)</span>
+                            <button
+                              onClick={() => setShowHeatmap(!showHeatmap)}
+                              className="text-[#00E5FF] hover:underline"
+                            >
+                              {showHeatmap ? 'Hide Heatmap' : 'View Heatmap'}
+                            </button>
+                          </div>
+                          {showHeatmap && (
+                            <div className="relative aspect-video rounded overflow-hidden border border-emerald-500/40">
+                              <img
+                                src={analysisReport.heatmapBase64}
+                                alt="Change Difference Heatmap"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[7px] text-slate-300 flex items-center gap-1.5">
+                                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block"></span> Veg Loss</span>
+                                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Veg Gain</span>
+                                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block"></span> Water</span>
+                                <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span> Disturbance</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Limitations */}
+                      <div className="text-[7.5px] text-slate-500 italic pt-1 border-t border-white/5">
+                        {analysisReport.limitations}
+                      </div>
+
+                      <button
+                        onClick={handleRunAnalysis}
+                        className="w-full py-1 text-[8px] font-bold uppercase rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300"
+                      >
+                        Re-Analyze Observations
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
