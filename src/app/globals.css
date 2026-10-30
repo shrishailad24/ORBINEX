@@ -11,12 +11,12 @@
   --gold-rgb: 212, 175, 55;
   --cyan-rgb: 0, 229, 255;
   /* ── Core Palette ── */
-  --bg-void: #04040A;
-  --bg-primary: #06060C;
-  --bg-secondary: #0C0E1A;
-  --bg-tertiary: #121628;
-  --bg-panel: rgba(8, 10, 20, 0.88);
-  --bg-panel-solid: #0C0E1A;
+  --bg-void: #2D2D3E;
+  --bg-primary: #252535;
+  --bg-secondary: #1F1F2C;
+  --bg-tertiary: #191924;
+  --bg-panel: rgba(45, 45, 62, 0.88);
+  --bg-panel-solid: #2D2D3E;
 
   /* ── Gold Accent (Eye of Horus) ── */
   --gold-primary: #D4AF37;

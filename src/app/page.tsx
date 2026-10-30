@@ -1402,7 +1402,7 @@ export default function Dashboard() {
             exit={{ opacity: 0, scale: 1.04 }}
             transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
             className="absolute inset-0 z-[999] flex flex-col items-center justify-center overflow-hidden"
-            style={{ background: 'radial-gradient(ellipse at center, #0a0a14 0%, var(--bg-void) 70%)' }}
+            style={{ background: 'radial-gradient(ellipse at center, #3A3A52 0%, var(--bg-void) 75%)' }}
           >
             {/* ── Scanline CRT overlay ── */}
             <div className="absolute inset-0 pointer-events-none z-[1]" style={{
