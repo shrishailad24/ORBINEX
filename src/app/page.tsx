@@ -29,6 +29,7 @@ import LiveAlerts from '@/components/LiveAlerts';
 import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
 import SatelliteComparePanel from '@/components/geointel/SatelliteComparePanel';
+import GlobalAssistantBar from '@/components/assistant/GlobalAssistantBar';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
 const SpaceCam = dynamic(() => import('@/components/SpaceCam'), { ssr: false });
@@ -2374,6 +2375,18 @@ export default function Dashboard() {
             });
           }
         }}
+      />
+
+      {/* ── PERSISTENT GLOBAL AI ASSISTANT BAR ── */}
+      <GlobalAssistantBar
+        activeAOI={satelliteDrawnAOI}
+        viewState={{
+          lat: mouseCoords?.lat ?? mapView?.latitude ?? 20,
+          lng: mouseCoords?.lng ?? 0,
+          zoom: mapView?.zoom ?? 3,
+        }}
+        onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 12, ts: Date.now() })}
+        onOpenSatellite={() => setShowSatelliteCompare(true)}
       />
 
       {/* ── OVERLAYS ── */}
