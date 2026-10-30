@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">
+  
+  <defs>
+    <!-- Background subtle dark aura for globe -->
+    <radialGradient id="globe-bg" cx="38%" cy="32%" r="65%">
+      <stop offset="0%" stop-color="#0E3A66"/>
+      <stop offset="45%" stop-color="#081E38"/>
+      <stop offset="85%" stop-color="#040D1A"/>
+      <stop offset="100%" stop-color="#020710"/>
+    </radialGradient>
+
+    <!-- Outer 'O' Torus Ring Gradient -->
+    <linearGradient id="o-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38E1FF"/>
+      <stop offset="30%" stop-color="#00C8F8"/>
+      <stop offset="70%" stop-color="#0066E0"/>
+      <stop offset="100%" stop-color="#00388A"/>
+    </linearGradient>
+
+    <!-- Inner Rim Glow -->
+    <linearGradient id="o-inner-rim" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#0077FF" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#002255" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Front Orbit Gradient -->
+    <linearGradient id="orbit-grad-front" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.2"/>
+      <stop offset="35%" stop-color="#00E5FF" stop-opacity="0.95"/>
+      <stop offset="75%" stop-color="#70EFFF" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+    </linearGradient>
+
+    <!-- Back Orbit Gradient -->
+    <linearGradient id="orbit-grad-back" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#0077D4" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#0055AA" stop-opacity="0.1"/>
+    </linearGradient>
+
+    <!-- Sensor Core Glow -->
+    <radialGradient id="sensor-beacon" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="35%" stop-color="#55EFFF"/>
+      <stop offset="70%" stop-color="#00B8F5" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0055AA" stop-opacity="0"/>
+    </radialGradient>
+    
+    <filter id="cyan-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+
+    <!-- Wordmark Gradients -->
+    <linearGradient id="text-white-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DCE7F5"/>
+    </linearGradient>
+
+    <linearGradient id="cyan-accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#55F0FF"/>
+      <stop offset="100%" stop-color="#00B4D8"/>
+    </linearGradient>
+  </defs>
+
+  
+  <!-- 1. BACK ORBITAL SEGMENT -->
+  <g transform="rotate(-25 100 100)">
+    <path d="M 12 100 A 88 28 0 0 1 188 100" fill="none" stroke="url(#orbit-grad-back)" stroke-width="2.5" stroke-dasharray="4 3" opacity="0.65"/>
+  </g>
+
+  <!-- 2. OUTER STRUCTURAL 'O' RING -->
+  <g>
+    <!-- Outer Ring Body -->
+    <circle cx="100" cy="100" r="76" fill="none" stroke="url(#o-ring-grad)" stroke-width="14" stroke-linecap="round"/>
+
+    <!-- Inner Edge Precision Rim -->
+    <circle cx="100" cy="100" r="68" fill="none" stroke="url(#o-inner-rim)" stroke-width="1.8"/>
+    
+    <!-- Outer Reticle Ticks -->
+    <path d="M 100 13 L 100 19 M 100 181 L 100 187 M 13 100 L 19 100 M 181 100 L 187 100" 
+          stroke="#00E5FF" stroke-width="2" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- 3. INNER EARTH GLOBE / GEOSPATIAL SPHERE -->
+  <g>
+    <!-- Globe Core Sphere -->
+    <circle cx="100" cy="100" r="50" fill="url(#globe-bg)"/>
+    
+    <!-- Atmosphere Glow -->
+    <circle cx="100" cy="100" r="50" fill="none" stroke="#00E5FF" stroke-width="1.5" opacity="0.45"/>
+
+    <!-- Latitude lines -->
+    <ellipse cx="100" cy="100" rx="50" ry="14" fill="none" stroke="#00D2FF" stroke-width="1" stroke-opacity="0.35"/>
+    <ellipse cx="100" cy="82" rx="46" ry="10" fill="none" stroke="#00D2FF" stroke-width="0.75" stroke-opacity="0.25"/>
+    <ellipse cx="100" cy="118" rx="46" ry="10" fill="none" stroke="#00D2FF" stroke-width="0.75" stroke-opacity="0.25"/>
+    
+    <!-- Meridians -->
+    <ellipse cx="100" cy="100" rx="22" ry="50" fill="none" stroke="#00D2FF" stroke-width="1" stroke-opacity="0.4"/>
+    <line x1="100" y1="50" x2="100" y2="150" stroke="#00E5FF" stroke-width="1.2" stroke-opacity="0.5"/>
+    <line x1="50" y1="100" x2="150" y2="100" stroke="#00E5FF" stroke-width="1.2" stroke-opacity="0.5"/>
+
+    <!-- Continents / Sensor Landmass Polygon Grid -->
+    <path d="M 82 72 Q 92 68 106 74 Q 116 80 120 90 Q 112 102 102 96 Q 90 98 84 90 Z" 
+          fill="#00E5FF" fill-opacity="0.22" stroke="#00E5FF" stroke-width="0.8" stroke-opacity="0.45"/>
+    <path d="M 74 105 Q 86 102 92 112 Q 95 125 86 130 Q 76 126 72 116 Z" 
+          fill="#00E5FF" fill-opacity="0.18" stroke="#00E5FF" stroke-width="0.8" stroke-opacity="0.4"/>
+    <path d="M 115 110 Q 128 108 135 116 Q 138 126 126 128 Z" 
+          fill="#00E5FF" fill-opacity="0.20" stroke="#00E5FF" stroke-width="0.8" stroke-opacity="0.4"/>
+  </g>
+
+  <!-- 4. FRONT ORBITAL SEGMENT -->
+  <g transform="rotate(-25 100 100)">
+    <path d="M 188 100 A 88 28 0 0 1 12 100" fill="none" stroke="url(#orbit-grad-front)" stroke-width="3.2" stroke-linecap="round" filter="url(#cyan-glow)"/>
+
+    <!-- Telemetry dots -->
+    <circle cx="55" cy="122" r="1.5" fill="#00E5FF" opacity="0.8"/>
+    <circle cx="95" cy="128" r="1.5" fill="#00E5FF" opacity="0.9"/>
+    <circle cx="140" cy="123" r="1.5" fill="#00E5FF" opacity="0.8"/>
+
+    <!-- Satellite Node -->
+    <g transform="translate(176, 90)">
+      <circle cx="0" cy="0" r="10" fill="url(#sensor-beacon)" opacity="0.85"/>
+      <circle cx="0" cy="0" r="4.5" fill="#00E5FF"/>
+      <circle cx="0" cy="0" r="2" fill="#FFFFFF"/>
+      <line x1="-8" y1="-3.5" x2="-3.5" y2="-1.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="3.5" y1="1.5" x2="8" y2="3.5" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- 5. OPTICAL TARGET RETICLE CORE -->
+  <circle cx="100" cy="100" r="3" fill="#FFFFFF"/>
+  <circle cx="100" cy="100" r="6" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.8"/>
+
+</svg>

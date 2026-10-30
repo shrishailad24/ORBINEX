@@ -19,4 +19,17 @@ export const BRAND = {
   legalNotice:
     'ORBINEX provides objective geospatial observation and remote-sensing analytics. Regulatory and legal statuses require lawful verification by competent authorities.',
   exportPrefix: 'orbinex',
+  assets: {
+    icon: '/brand/orbinex-icon.svg',
+    iconDark: '/brand/orbinex-icon-dark.svg',
+    iconLight: '/brand/orbinex-icon-light.svg',
+    logoHorizontal: '/brand/orbinex-logo-horizontal.svg',
+    logoHorizontalDark: '/brand/orbinex-logo-horizontal-dark.svg',
+    logoHorizontalLight: '/brand/orbinex-logo-horizontal-light.svg',
+    logoStacked: '/brand/orbinex-logo-stacked.svg',
+    logoMonoWhite: '/brand/orbinex-logo-monochrome-white.svg',
+    logoMonoBlack: '/brand/orbinex-logo-monochrome-black.svg',
+    favicon: '/brand/orbinex-favicon.svg',
+    presentationBoard: '/brand/orbinex-brand-presentation.jpg',
+  },
 } as const;
