@@ -2309,12 +2309,13 @@ export default function Dashboard() {
         onClose={() => setShowSatelliteCompare(false)}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
         onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl }) => {
-          if (afterScene?.coordinates && (processedImageUrl || afterScene?.thumbnailUrl)) {
+          const scene = afterScene || beforeScene;
+          if (scene?.coordinates && (processedImageUrl || scene?.thumbnailUrl)) {
             setActiveSatelliteImagery({
-              id: afterScene.id,
+              id: scene.id,
               type: 'image',
-              url: processedImageUrl || `/api/satellite/asset?url=${encodeURIComponent(afterScene.thumbnailUrl!)}`,
-              coordinates: afterScene.coordinates,
+              url: processedImageUrl || `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl!)}`,
+              coordinates: scene.coordinates,
               opacity,
               visible: true,
             });

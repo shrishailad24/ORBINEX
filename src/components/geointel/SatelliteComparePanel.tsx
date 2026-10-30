@@ -55,6 +55,7 @@ export default function SatelliteComparePanel({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [comparison, setComparison] = useState<HistoricalComparisonPair | null>(null);
+  const [projectedSceneId, setProjectedSceneId] = useState<string | null>(null);
 
   const fetchComparison = useCallback(async () => {
     setLoading(true);
@@ -74,6 +75,10 @@ export default function SatelliteComparePanel({
       const data = await res.json();
       if (data.comparison) {
         setComparison(data.comparison);
+        const activeScene = data.comparison.after.matchedScene || data.comparison.before.matchedScene;
+        if (activeScene) {
+          setProjectedSceneId(activeScene.id);
+        }
         onProjectImagery?.({
           beforeScene: data.comparison.before.matchedScene,
           afterScene: data.comparison.after.matchedScene,
@@ -103,42 +108,65 @@ export default function SatelliteComparePanel({
     onLocate?.(preset.lat, preset.lng, preset.defaultZoom);
   };
 
-  const handleProcessImagery = async (scene: SatelliteScene) => {
+  const handleProjectScene = async (scene: SatelliteScene, processFirst: boolean = false) => {
     if (!scene.thumbnailUrl) return;
-    setProcessing(true);
-    try {
-      const params = new URLSearchParams({
-        url: scene.thumbnailUrl,
-        stretch: contrastStretch ? 'true' : 'false',
-        platform: scene.platform,
-        width: '1024',
-      });
-      if (scene.bbox) {
-        params.set('sceneBbox', scene.bbox.join(','));
-        // Center AOI
-        params.set('aoiBbox', [
-          selectedPreset.lng - 0.15,
-          selectedPreset.lat - 0.15,
-          selectedPreset.lng + 0.15,
-          selectedPreset.lat + 0.15,
-        ].join(','));
+    setProjectedSceneId(scene.id);
+
+    if (processFirst) {
+      setProcessing(true);
+      try {
+        const params = new URLSearchParams({
+          url: scene.thumbnailUrl,
+          stretch: contrastStretch ? 'true' : 'false',
+          platform: scene.platform,
+          width: '1024',
+        });
+        if (scene.bbox) {
+          params.set('sceneBbox', scene.bbox.join(','));
+          // Center AOI
+          params.set('aoiBbox', [
+            selectedPreset.lng - 0.15,
+            selectedPreset.lat - 0.15,
+            selectedPreset.lng + 0.15,
+            selectedPreset.lat + 0.15,
+          ].join(','));
+        }
+
+        const processUrl = `/api/satellite/process?${params.toString()}`;
+        setProcessedImageUrl(processUrl);
+
+        // Project onto map
+        onProjectImagery?.({
+          beforeScene: null,
+          afterScene: scene,
+          opacity: opacity / 100,
+          processedImageUrl: processUrl,
+        });
+      } catch (e) {
+        console.error('[ORBINEX] Processing failed:', e);
+      } finally {
+        setProcessing(false);
       }
-
-      const processUrl = `/api/satellite/process?${params.toString()}`;
-      setProcessedImageUrl(processUrl);
-
-      // Project onto map
+    } else {
       onProjectImagery?.({
         beforeScene: null,
         afterScene: scene,
         opacity: opacity / 100,
-        processedImageUrl: processUrl,
       });
-    } catch (e) {
-      console.error('[ORBINEX] Processing failed:', e);
-    } finally {
-      setProcessing(false);
     }
+  };
+
+  const formatAcquisitionDate = (isoStr?: string) => {
+    return isoStr ? isoStr.split('T')[0] : '';
+  };
+
+  const getDeltaDays = (actualStr?: string, targetStr?: string) => {
+    if (!actualStr || !targetStr) return null;
+    const t1 = new Date(actualStr.split('T')[0]).getTime();
+    const t2 = new Date(targetStr.split('T')[0]).getTime();
+    if (isNaN(t1) || isNaN(t2)) return null;
+    const diff = Math.round((t1 - t2) / 86400000);
+    return diff === 0 ? 'Exact Target' : (diff > 0 ? `+${diff}d nearest` : `${diff}d nearest`);
   };
 
   if (!isOpen) return null;
@@ -311,134 +339,234 @@ export default function SatelliteComparePanel({
 
               <div className="grid grid-cols-2 gap-2.5">
                 {/* Before Card */}
-                <div className="bg-black/50 border border-cyan-500/30 rounded-lg p-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[8.5px] font-bold text-cyan-400 uppercase">BEFORE ({beforeDate})</span>
-                    {comparison.before.matchedScene?.cloudCover != null && (
-                      <span className="text-[8px] text-slate-400">
-                        ☁ {comparison.before.matchedScene.cloudCover}%
-                      </span>
+                <div className={`bg-black/50 rounded-lg p-2 space-y-2 border transition-all ${
+                  projectedSceneId === comparison.before.matchedScene?.id
+                    ? 'border-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.25)]'
+                    : 'border-cyan-500/30'
+                }`}>
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[8.5px] font-bold text-cyan-400 uppercase">
+                          BEFORE {comparison.before.matchedScene?.datetime ? formatAcquisitionDate(comparison.before.matchedScene.datetime) : beforeDate}
+                        </span>
+                      </div>
+                      {comparison.before.matchedScene?.cloudCover != null && (
+                        <span className="text-[8px] text-slate-400">
+                          ☁ {comparison.before.matchedScene.cloudCover}%
+                        </span>
+                      )}
+                    </div>
+                    {comparison.before.matchedScene?.datetime && (
+                      <div className="flex items-center justify-between text-[7.5px] text-slate-400">
+                        <span>Target: {beforeDate}</span>
+                        <span className="text-cyan-400/90 font-mono">
+                          {getDeltaDays(comparison.before.matchedScene.datetime, beforeDate)}
+                        </span>
+                      </div>
                     )}
                   </div>
+
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
                     {comparison.before.matchedScene?.thumbnailUrl ? (
                       <img
                         src={`/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`}
                         alt="Before Satellite Scene"
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            const fallback = document.createElement('div');
+                            fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
+                            fallback.innerText = 'JPEG-2000 transcode pending. Click "Process AOI".';
+                            parent.appendChild(fallback);
+                          }
+                        }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">
-                        NASA GIBS Active
+                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500 p-2 text-center">
+                        No observation within 45d of target date
+                      </div>
+                    )}
+                    {projectedSceneId === comparison.before.matchedScene?.id && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-[#00E5FF]/20 border border-[#00E5FF] text-[7.5px] text-[#00E5FF] font-bold tracking-wider backdrop-blur-sm shadow-[0_0_8px_rgba(0,229,255,0.4)]">
+                        ● ON MAP
                       </div>
                     )}
                   </div>
+
                   {comparison.before.matchedScene && (
-                    <button
-                      onClick={() => handleProcessImagery(comparison.before.matchedScene!)}
-                      disabled={processing}
-                      className="w-full py-1 text-[8.5px] font-bold uppercase rounded bg-white/5 hover:bg-white/10 border border-white/10 text-white flex items-center justify-center gap-1 transition-colors"
-                    >
-                      <Sparkles className="w-2.5 h-2.5 text-[#00E5FF]" />
-                      <span>Process AOI</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-1 pt-0.5">
+                      <button
+                        onClick={() => handleProjectScene(comparison.before.matchedScene!, false)}
+                        className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
+                          projectedSceneId === comparison.before.matchedScene.id
+                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
+                            : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                        }`}
+                      >
+                        Project Map
+                      </button>
+                      <button
+                        onClick={() => handleProjectScene(comparison.before.matchedScene!, true)}
+                        disabled={processing}
+                        className="py-1 text-[8px] font-bold uppercase rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                        <span>Process</span>
+                      </button>
+                    </div>
                   )}
                 </div>
 
                 {/* After Card */}
-                <div className="bg-black/50 border border-[#00E5FF]/40 rounded-lg p-2 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[8.5px] font-bold text-[#00E5FF] uppercase">AFTER ({afterDate})</span>
-                    {comparison.after.matchedScene?.cloudCover != null && (
-                      <span className="text-[8px] text-slate-400">
-                        ☁ {comparison.after.matchedScene.cloudCover}%
-                      </span>
+                <div className={`bg-black/50 rounded-lg p-2 space-y-2 border transition-all ${
+                  projectedSceneId === comparison.after.matchedScene?.id
+                    ? 'border-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.25)]'
+                    : 'border-[#00E5FF]/40'
+                }`}>
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[8.5px] font-bold text-[#00E5FF] uppercase">
+                          AFTER {comparison.after.matchedScene?.datetime ? formatAcquisitionDate(comparison.after.matchedScene.datetime) : afterDate}
+                        </span>
+                      </div>
+                      {comparison.after.matchedScene?.cloudCover != null && (
+                        <span className="text-[8px] text-slate-400">
+                          ☁ {comparison.after.matchedScene.cloudCover}%
+                        </span>
+                      )}
+                    </div>
+                    {comparison.after.matchedScene?.datetime && (
+                      <div className="flex items-center justify-between text-[7.5px] text-slate-400">
+                        <span>Target: {afterDate}</span>
+                        <span className="text-[#00E5FF]/90 font-mono">
+                          {getDeltaDays(comparison.after.matchedScene.datetime, afterDate)}
+                        </span>
+                      </div>
                     )}
                   </div>
+
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
                     {comparison.after.matchedScene?.thumbnailUrl ? (
                       <img
                         src={`/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`}
                         alt="After Satellite Scene"
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          const parent = target.parentElement;
+                          if (parent) {
+                            const fallback = document.createElement('div');
+                            fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
+                            fallback.innerText = 'Transcode pending. Click "Process".';
+                            parent.appendChild(fallback);
+                          }
+                        }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">
-                        NASA GIBS Active
+                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500 p-2 text-center">
+                        No observation within 45d of target date
+                      </div>
+                    )}
+                    {projectedSceneId === comparison.after.matchedScene?.id && (
+                      <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-[#00E5FF]/20 border border-[#00E5FF] text-[7.5px] text-[#00E5FF] font-bold tracking-wider backdrop-blur-sm shadow-[0_0_8px_rgba(0,229,255,0.4)]">
+                        ● ON MAP
                       </div>
                     )}
                   </div>
+
                   {comparison.after.matchedScene && (
-                    <button
-                      onClick={() => handleProcessImagery(comparison.after.matchedScene!)}
-                      disabled={processing}
-                      className="w-full py-1 text-[8.5px] font-bold uppercase rounded bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/30 text-[#00E5FF] flex items-center justify-center gap-1 transition-colors"
-                    >
-                      <Sparkles className="w-2.5 h-2.5" />
-                      <span>Process & Project</span>
-                    </button>
+                    <div className="grid grid-cols-2 gap-1 pt-0.5">
+                      <button
+                        onClick={() => handleProjectScene(comparison.after.matchedScene!, false)}
+                        className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
+                          projectedSceneId === comparison.after.matchedScene.id
+                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
+                            : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                        }`}
+                      >
+                        Project Map
+                      </button>
+                      <button
+                        onClick={() => handleProjectScene(comparison.after.matchedScene!, true)}
+                        disabled={processing}
+                        className="py-1 text-[8px] font-bold uppercase rounded bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/30 text-[#00E5FF] flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-[#00E5FF]" />
+                        <span>Process</span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
 
               {/* Acquisition Metadata Card */}
-              {comparison.after.matchedScene && (
-                <div className="p-2.5 rounded bg-black/60 border border-white/10 space-y-1.5 text-[9.5px]">
-                  <div className="flex items-center justify-between text-slate-400 border-b border-white/5 pb-1">
-                    <span className="flex items-center gap-1 text-[#00E5FF] font-bold">
-                      <Info className="w-3 h-3" />
-                      <span>Scene Telemetry & Metadata</span>
-                    </span>
-                    <span className="text-[8px] text-slate-400">EPSG:4326 (WGS84)</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1 text-[8.5px] pt-0.5">
-                    <div>
-                      <span className="text-slate-500">Platform: </span>
-                      <span className="text-white font-semibold">{comparison.after.matchedScene.platform}</span>
+              {(() => {
+                const activeTelemetry = (projectedSceneId === comparison.before.matchedScene?.id ? comparison.before.matchedScene : comparison.after.matchedScene) || comparison.after.matchedScene || comparison.before.matchedScene;
+                if (!activeTelemetry) return null;
+                return (
+                  <div className="p-2.5 rounded bg-black/60 border border-white/10 space-y-1.5 text-[9.5px]">
+                    <div className="flex items-center justify-between text-slate-400 border-b border-white/5 pb-1">
+                      <span className="flex items-center gap-1 text-[#00E5FF] font-bold">
+                        <Info className="w-3 h-3" />
+                        <span>Scene Telemetry ({projectedSceneId === comparison.before.matchedScene?.id ? 'BEFORE' : 'AFTER'})</span>
+                      </span>
+                      <span className="text-[8px] text-slate-400">EPSG:4326 (WGS84)</span>
                     </div>
-                    <div>
-                      <span className="text-slate-500">Modality: </span>
-                      <span className="text-white font-semibold uppercase">{comparison.after.matchedScene.modality}</span>
+                    <div className="grid grid-cols-2 gap-1 text-[8.5px] pt-0.5">
+                      <div>
+                        <span className="text-slate-500">Platform: </span>
+                        <span className="text-white font-semibold">{activeTelemetry.platform}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Acquisition: </span>
+                        <span className="text-[#00E5FF] font-semibold">{formatAcquisitionDate(activeTelemetry.datetime)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Resolution: </span>
+                        <span className="text-white font-semibold">{activeTelemetry.metadata?.resolutionMeters || 10}m/px</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Cloud Cover: </span>
+                        <span className="text-white font-semibold">{activeTelemetry.cloudCover ?? '0.0'}%</span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-slate-500">Resolution: </span>
-                      <span className="text-white font-semibold">{comparison.after.matchedScene.metadata?.resolutionMeters || 10}m/px</span>
+                    <div className="text-[8px] text-slate-400 truncate pt-1 border-t border-white/5">
+                      Attribution: Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84
                     </div>
-                    <div>
-                      <span className="text-slate-500">Cloud Cover: </span>
-                      <span className="text-white font-semibold">{comparison.after.matchedScene.cloudCover ?? '0.0'}%</span>
-                    </div>
-                  </div>
-                  <div className="text-[8px] text-slate-400 truncate pt-1 border-t border-white/5">
-                    Attribution: Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84
-                  </div>
 
-                  {/* High-res asset links */}
-                  <div className="pt-1 flex items-center justify-between">
-                    {comparison.after.matchedScene.visualUrl && (
-                      <a
-                        href={comparison.after.matchedScene.visualUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#00E5FF] hover:underline flex items-center gap-1 text-[8.5px] font-semibold"
-                      >
-                        <span>AWS S3 COG (340 MB)</span>
-                        <ExternalLink className="w-2.5 h-2.5" />
-                      </a>
-                    )}
-                    {comparison.after.matchedScene.thumbnailUrl && (
-                      <a
-                        href={`/api/satellite/process?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}&stretch=true&platform=${encodeURIComponent(comparison.after.matchedScene.platform)}`}
-                        download={`orbinex-${comparison.after.matchedScene.id}-processed.png`}
-                        className="text-white/80 hover:text-white flex items-center gap-1 text-[8.5px] font-semibold"
-                      >
-                        <Download className="w-2.5 h-2.5" />
-                        <span>Download PNG</span>
-                      </a>
-                    )}
+                    {/* High-res asset links */}
+                    <div className="pt-1 flex items-center justify-between">
+                      {activeTelemetry.visualUrl && (
+                        <a
+                          href={activeTelemetry.visualUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#00E5FF] hover:underline flex items-center gap-1 text-[8.5px] font-semibold"
+                        >
+                          <span>AWS S3 COG (340 MB)</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      )}
+                      {activeTelemetry.thumbnailUrl && (
+                        <a
+                          href={`/api/satellite/process?url=${encodeURIComponent(activeTelemetry.thumbnailUrl)}&stretch=true&platform=${encodeURIComponent(activeTelemetry.platform)}`}
+                          download={`orbinex-${activeTelemetry.id}-processed.png`}
+                          className="text-white/80 hover:text-white flex items-center gap-1 text-[8.5px] font-semibold"
+                        >
+                          <Download className="w-2.5 h-2.5" />
+                          <span>Download PNG</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
