@@ -62,7 +62,7 @@ const DEFS: ProviderDef[] = ([
   {
     id: 'groq', name: 'Groq', wire: 'openai', base: 'https://api.groq.com/openai/v1',
     keyUrl: 'https://console.groq.com/keys', keyHint: 'gsk_…',
-    defaultModel: 'llama-3.3-70b-versatile', suggested: ['llama-3.3-70b-versatile', 'openai/gpt-oss-120b'], concurrency: 2,
+    defaultModel: 'qwen/qwen3.8-27b', suggested: ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b', 'llama-3.3-70b-versatile'], concurrency: 4,
   },
   {
     id: 'deepseek', name: 'DeepSeek', wire: 'openai', base: 'https://api.deepseek.com',
