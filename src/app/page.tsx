@@ -1405,8 +1405,8 @@ export default function Dashboard() {
                 className="absolute inset-0 rounded-full"
                 style={{ border: '1px solid rgba(212,175,55,0.2)' }}
               >
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ background: 'var(--gold-primary)', boxShadow: '0 0 12px var(--gold-primary), 0 0 24px rgba(212,175,55,0.3)' }} />
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(212,175,55,0.5)', boxShadow: '0 0 6px rgba(212,175,55,0.3)' }} />
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 12px var(--gold-primary), 0 0 24px rgba(0,229,255,0.3)' }} />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-1 h-1 rounded-full" style={{ background: 'rgba(212,175,55,0.5)', boxShadow: '0 0 6px rgba(0,229,255,0.3)' }} />
               </motion.div>
 
               {/* Middle ring — faster counter-clockwise */}
@@ -1427,9 +1427,9 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1, rotate: 360 }}
                 transition={{ opacity: { duration: 0.6, delay: 0.3 }, scale: { duration: 0.8, delay: 0.3, ease: 'easeOut' }, rotate: { duration: 7, repeat: Infinity, ease: 'linear' } }}
                 className="absolute rounded-full"
-                style={{ inset: '40px', border: '1px solid rgba(212,175,55,0.25)' }}
+                style={{ inset: '40px', border: '1px solid rgba(0,229,255,0.25)' }}
               >
-                <div className="absolute top-0 left-1/4 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gold-primary)', boxShadow: '0 0 8px var(--gold-primary)' }} />
+                <div className="absolute top-0 left-1/4 -translate-y-1/2 w-1.5 h-1.5 rounded-full" style={{ background: 'var(--cyan-primary)', boxShadow: '0 0 8px var(--cyan-primary)' }} />
               </motion.div>
 
               {/* Core circle + crosshair */}
@@ -1447,8 +1447,8 @@ export default function Dashboard() {
                   style={{ background: 'radial-gradient(circle, rgba(0,229,255,0.4) 0%, rgba(0,229,255,0.05) 70%)' }}
                 />
                 {/* Crosshair lines */}
-                <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(212,175,55,0.3), transparent)' }} />
-                <div className="absolute w-full h-[1px]" style={{ background: 'linear-gradient(to right, transparent, rgba(212,175,55,0.3), transparent)' }} />
+                <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(0,229,255,0.3), transparent)' }} />
+                <div className="absolute w-full h-[1px]" style={{ background: 'linear-gradient(to right, transparent, rgba(0,229,255,0.3), transparent)' }} />
               </motion.div>
 
               {/* Faint pulsing radar sweep */}
@@ -1457,7 +1457,7 @@ export default function Dashboard() {
                 animate={{ opacity: [0, 0.15, 0], rotate: [0, 360] }}
                 transition={{ opacity: { duration: 3, repeat: Infinity }, rotate: { duration: 3, repeat: Infinity, ease: 'linear' }, delay: 0.6 }}
                 className="absolute inset-[10px] rounded-full"
-                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(212,175,55,0.15) 40deg, transparent 80deg)' }}
+                style={{ background: 'conic-gradient(from 0deg, transparent 0deg, rgba(0,229,255,0.2) 40deg, transparent 80deg)' }}
               />
             </div>
 
@@ -1494,13 +1494,13 @@ export default function Dashboard() {
             {/* ── Multi-stage progress bar ── */}
             <div className="w-64 md:w-80 z-[2]">
               {/* Thin progress track */}
-              <div className="relative w-full h-[2px] rounded-full overflow-hidden" style={{ background: 'rgba(212,175,55,0.1)' }}>
+              <div className="relative w-full h-[2px] rounded-full overflow-hidden" style={{ background: 'rgba(0,229,255,0.15)' }}>
                 <motion.div
                   initial={{ width: '0%' }}
                   animate={{ width: SPLASH_PROGRESS[splashStage] }}
                   transition={{ duration: 0.55, delay: splashStage === 0 ? 0.5 : 0, ease: 'easeInOut' }}
                   className="absolute inset-y-0 left-0 rounded-full"
-                  style={{ background: 'linear-gradient(90deg, var(--gold-primary), var(--cyan-primary), var(--gold-primary))', boxShadow: '0 0 12px rgba(212,175,55,0.4)' }}
+                  style={{ background: 'linear-gradient(90deg, #00B4D8, #00E5FF, #38BDF8)', boxShadow: '0 0 12px rgba(0,229,255,0.4)' }}
                 />
               </div>
 
