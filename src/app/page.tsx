@@ -1438,13 +1438,13 @@ export default function Dashboard() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.4, duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
                 className="relative w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ border: '2px solid var(--gold-primary)', boxShadow: '0 0 20px rgba(212,175,55,0.15), inset 0 0 20px rgba(212,175,55,0.05)' }}
+                style={{ border: '2px solid var(--cyan-primary)', boxShadow: '0 0 20px rgba(0,229,255,0.35), inset 0 0 20px rgba(0,229,255,0.1)' }}
               >
                 <motion.div
                   animate={{ opacity: [0.3, 0.8, 0.3] }}
                   transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                   className="w-5 h-5 rounded-full"
-                  style={{ background: 'radial-gradient(circle, rgba(212,175,55,0.4) 0%, rgba(212,175,55,0.05) 70%)' }}
+                  style={{ background: 'radial-gradient(circle, rgba(0,229,255,0.4) 0%, rgba(0,229,255,0.05) 70%)' }}
                 />
                 {/* Crosshair lines */}
                 <div className="absolute w-[1px] h-full" style={{ background: 'linear-gradient(to bottom, transparent, rgba(212,175,55,0.3), transparent)' }} />
@@ -1463,14 +1463,14 @@ export default function Dashboard() {
 
             {/* ── OSIRIS title — letter-by-letter stagger ── */}
             <div className="flex items-center gap-[2px] mb-3 z-[2]">
-              {'OSIRIS'.split('').map((letter, i) => (
+              {'ORBINEX'.split('').map((letter, i) => (
                 <motion.span
                   key={i}
                   initial={{ opacity: 0, y: 20, filter: 'blur(8px)' }}
                   animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                   transition={{ delay: 0.5 + i * 0.08, duration: 0.5, ease: 'easeOut' }}
                   className="text-4xl md:text-5xl font-bold tracking-[0.5em] font-mono"
-                  style={{ color: 'var(--text-heading)', textShadow: '0 0 30px rgba(212,175,55,0.2)' }}
+                  style={{ color: '#00E5FF', textShadow: '0 0 30px rgba(0,229,255,0.5), 0 0 60px rgba(0,229,255,0.25)' }}
                 >
                   {letter}
                 </motion.span>
@@ -1485,8 +1485,8 @@ export default function Dashboard() {
                 transition={{ delay: 1.2, duration: 0.8, ease: 'easeInOut' }}
                 className="overflow-hidden whitespace-nowrap"
               >
-                <p className="text-[11px] md:text-[10px] font-mono tracking-[0.5em] text-[var(--gold-primary)]" style={{ opacity: 0.8 }}>
-                  GLOBAL INTELLIGENCE PLATFORM
+                <p className="text-[10px] md:text-[9.5px] font-mono tracking-[0.3em] text-[#00E5FF] uppercase font-semibold" style={{ opacity: 0.9 }}>
+                  GLOBAL GEOSPATIAL INTELLIGENCE PLATFORM
                 </p>
               </motion.div>
             </div>
