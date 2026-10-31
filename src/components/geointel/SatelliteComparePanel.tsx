@@ -117,7 +117,7 @@ export default function SatelliteComparePanel({
     defaultZoom: STRATEGIC_PRESETS[0].defaultZoom,
   });
 
-  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS'>('Sentinel-2');
+  const [platform, setPlatform] = useState<'High-Res' | 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS'>('High-Res');
   const [beforeDate, setBeforeDate] = useState(STRATEGIC_PRESETS[0].suggestedBeforeDate);
   const [afterDate, setAfterDate] = useState(STRATEGIC_PRESETS[0].suggestedAfterDate);
   const [maxCloudCover, setMaxCloudCover] = useState(20);
@@ -200,8 +200,18 @@ export default function SatelliteComparePanel({
   };
 
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
-    if (!scene?.thumbnailUrl) return '';
-    if (cropped && scene.bbox && currentBbox) {
+    if (!currentBbox) return scene?.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
+
+    // Sub-meter High-Res Optical Imagery:
+    // If High-Res platform or small plot <= 2.5 km, export exact sub-meter optical imagery!
+    // Never blow up a 3-pixel thumbnail crop!
+    if (platform === 'High-Res' || surroundingRadiusKm <= 2.5) {
+      const [minLng, minLat, maxLng, maxLat] = currentBbox;
+      const rawUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
+      return `/api/satellite/asset?url=${encodeURIComponent(rawUrl)}`;
+    }
+
+    if (cropped && scene?.thumbnailUrl && scene.bbox) {
       const params = new URLSearchParams({
         url: scene.thumbnailUrl,
         stretch: contrastStretch ? 'true' : 'false',
@@ -212,8 +222,8 @@ export default function SatelliteComparePanel({
       });
       return `/api/satellite/process?${params.toString()}`;
     }
-    return `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`;
-  }, [currentBbox, contrastStretch]);
+    return scene?.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
+  }, [currentBbox, surroundingRadiusKm, platform, contrastStretch]);
 
   // Global search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -417,6 +427,54 @@ export default function SatelliteComparePanel({
     setError(null);
     setProcessedImageUrl(null);
     try {
+      if (platform === 'High-Res') {
+        const [minLng, minLat, maxLng, maxLat] = currentBbox;
+        const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
+        const proxiedUrl = `/api/satellite/asset?url=${encodeURIComponent(exportUrl)}`;
+        const syntheticScene: SatelliteScene = {
+          id: `highres-${Date.now()}`,
+          platform: 'Sentinel-2',
+          modality: 'optical',
+          collection: 'World_Imagery_HighRes',
+          datetime: afterDate,
+          cloudCover: 0,
+          bbox: currentBbox,
+          coordinates: [
+            [minLng, maxLat],
+            [maxLng, maxLat],
+            [maxLng, minLat],
+            [minLng, minLat],
+          ],
+          thumbnailUrl: exportUrl,
+          visualUrl: exportUrl,
+          metadata: { resolutionMeters: 0.5 },
+        };
+        setComparison({
+          locationName: activeLocation.name,
+          center: { lat: activeLocation.lat, lng: activeLocation.lng },
+          zoom: getRadiusZoom(surroundingRadiusKm),
+          before: {
+            targetDate: beforeDate,
+            matchedScene: { ...syntheticScene, id: 'highres-before', datetime: beforeDate },
+            tileUrl: undefined,
+          },
+          after: {
+            targetDate: afterDate,
+            matchedScene: syntheticScene,
+            tileUrl: undefined,
+          },
+        });
+        setProjectedSceneId(syntheticScene.id);
+        onProjectImagery?.({
+          beforeScene: null,
+          afterScene: syntheticScene,
+          opacity: opacity / 100,
+          processedImageUrl: proxiedUrl,
+          footprintBbox: currentBbox,
+        });
+        setLoading(false);
+        return;
+      }
       const params = new URLSearchParams({
         lat: activeLocation.lat.toString(),
         lng: activeLocation.lng.toString(),
@@ -1039,18 +1097,19 @@ export default function SatelliteComparePanel({
               <span>Constellation / Sensor</span>
               <span className="text-[#00E5FF]">{platform}</span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(['Sentinel-2', 'Sentinel-1', 'NASA-GIBS'] as const).map((p) => (
+            <div className="grid grid-cols-4 gap-1">
+              {(['High-Res', 'Sentinel-2', 'Sentinel-1', 'NASA-GIBS'] as const).map((p) => (
                 <button
                   key={p}
+                  type="button"
                   onClick={() => setPlatform(p)}
-                  className={`py-1.5 px-2 rounded text-center border text-[9.5px] uppercase font-bold tracking-wider transition-all ${
+                  className={`py-1.5 px-1 rounded text-center border text-[8px] uppercase font-bold tracking-wider transition-all ${
                     platform === p
-                      ? 'border-[#00E5FF] bg-[#00E5FF]/20 text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.2)]'
+                      ? 'border-[#00E5FF] bg-[#00E5FF]/25 text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.3)]'
                       : 'border-white/10 bg-white/[0.02] text-slate-400 hover:text-white'
                   }`}
                 >
-                  {p === 'Sentinel-2' ? 'S2 Optical' : p === 'Sentinel-1' ? 'S1 SAR' : 'NASA GIBS'}
+                  {p === 'High-Res' ? 'High-Res' : p === 'Sentinel-2' ? 'S2 Optical' : p === 'Sentinel-1' ? 'S1 SAR' : 'NASA GIBS'}
                 </button>
               ))}
             </div>
