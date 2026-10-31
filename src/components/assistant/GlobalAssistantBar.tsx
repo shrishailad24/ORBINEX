@@ -39,6 +39,95 @@ interface GlobalAssistantBarProps {
   onOpenSatellite?: () => void;
 }
 
+function renderInlineFormatting(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={i} className="text-white font-semibold">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={i} className="px-1.5 py-0.5 rounded bg-white/10 text-[#00E5FF] text-[11px] font-mono">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return part;
+  });
+}
+
+function FormattedMessage({ content }: { content: string }) {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: string[] = [];
+
+  const flushList = (key: number) => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`ul-${key}`} className="my-1.5 space-y-1 pl-4 list-disc marker:text-[#00E5FF]">
+          {currentList.map((item, idx) => (
+            <li key={idx} className="text-slate-200 leading-relaxed text-[13px] font-sans">
+              {renderInlineFormatting(item)}
+            </li>
+          ))}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushList(idx);
+      return;
+    }
+
+    // Bullet list items (- or *)
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      currentList.push(trimmed.slice(2));
+      return;
+    }
+
+    // Numbered list items (1. 2.)
+    if (/^\d+\.\s/.test(trimmed)) {
+      currentList.push(trimmed.replace(/^\d+\.\s/, ''));
+      return;
+    }
+
+    flushList(idx);
+
+    // Headings (### or ## or #)
+    if (trimmed.startsWith('### ')) {
+      elements.push(
+        <h4 key={idx} className="text-[13.5px] font-semibold text-white mt-2 mb-1 tracking-wide font-sans">
+          {renderInlineFormatting(trimmed.slice(4))}
+        </h4>
+      );
+    } else if (trimmed.startsWith('## ') || trimmed.startsWith('# ')) {
+      elements.push(
+        <h3 key={idx} className="text-[14px] font-semibold text-[#00E5FF] mt-2.5 mb-1 tracking-wide font-sans">
+          {renderInlineFormatting(trimmed.replace(/^#+\s*/, ''))}
+        </h3>
+      );
+    } else {
+      elements.push(
+        <p key={idx} className="text-slate-200 leading-relaxed text-[13px] my-1 font-sans">
+          {renderInlineFormatting(line)}
+        </p>
+      );
+    }
+  });
+
+  flushList(lines.length);
+
+  return <div className="space-y-1">{elements}</div>;
+}
+
 export default function GlobalAssistantBar({
   activeAOI,
   viewState,
@@ -227,12 +316,15 @@ export default function GlobalAssistantBar({
             {/* Header */}
             <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-[#00E5FF]" />
-                <span className="text-[11px] font-bold text-white tracking-widest uppercase">
-                  PLANETARY INTELLIGENCE DOSSIER
+                <div className="w-2 h-2 rounded-full bg-[#00E5FF] animate-pulse shadow-[0_0_8px_#00E5FF]" />
+                <span className="text-[12px] font-semibold text-white tracking-wider">
+                  ORBINEX AI
+                </span>
+                <span className="text-[10px] text-slate-400 font-sans">
+                  • Planetary Assistant
                 </span>
                 {activeAOI && (
-                  <span className="px-1.5 py-0.5 rounded bg-[#00E5FF]/20 text-[#00E5FF] text-[8.5px] font-mono border border-[#00E5FF]/40 truncate max-w-[200px]">
+                  <span className="ml-1 px-1.5 py-0.5 rounded bg-[#00E5FF]/15 text-[#00E5FF] text-[9px] font-mono border border-[#00E5FF]/30 truncate max-w-[200px]">
                     AOI: {activeAOI.name}
                   </span>
                 )}
@@ -240,13 +332,14 @@ export default function GlobalAssistantBar({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setMessages([])}
-                  className="text-[9px] text-slate-400 hover:text-white transition-colors"
+                  className="text-[9.5px] text-slate-400 hover:text-white transition-colors font-sans"
                 >
                   Clear History
                 </button>
                 <button
                   onClick={() => setIsExpanded(false)}
                   className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-white transition-colors"
+                  title="Minimize"
                 >
                   <Minimize2 className="w-3 h-3" />
                 </button>
@@ -262,48 +355,45 @@ export default function GlobalAssistantBar({
                     m.role === 'user' ? 'items-end' : 'items-start'
                   } space-y-1`}
                 >
-                  <div className="flex items-center gap-1.5 text-[8.5px] text-slate-400 font-mono">
+                  <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-sans">
                     {m.role === 'user' ? (
                       <>
-                        <span>OPERATOR</span>
+                        <span>You</span>
                         <User className="w-2.5 h-2.5 text-slate-400" />
                       </>
                     ) : (
                       <>
-                        <Bot className="w-2.5 h-2.5 text-[#00E5FF]" />
-                        <span className="text-[#00E5FF] font-bold">ORBINEX AI</span>
+                        <div className="w-3.5 h-3.5 rounded-full bg-[#00E5FF]/20 flex items-center justify-center text-[#00E5FF]">
+                          <Sparkles className="w-2 h-2" />
+                        </div>
+                        <span className="text-[#00E5FF] font-medium">ORBINEX AI</span>
                       </>
                     )}
                     <span>• {m.timestamp}</span>
                   </div>
 
                   <div
-                    className={`p-3 rounded-xl max-w-[90%] leading-relaxed ${
+                    className={`p-3.5 rounded-2xl max-w-[92%] leading-relaxed shadow-sm ${
                       m.role === 'user'
-                        ? 'bg-[#00E5FF]/20 border border-[#00E5FF]/40 text-white rounded-br-none shadow-[0_0_12px_rgba(0,229,255,0.15)]'
-                        : 'bg-black/60 border border-white/10 text-slate-100 rounded-bl-none prose prose-invert prose-xs max-w-none'
+                        ? 'bg-[#00E5FF]/15 border border-[#00E5FF]/35 text-white rounded-br-sm'
+                        : 'bg-white/[0.04] border border-white/10 text-slate-100 rounded-bl-sm'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap text-[11.5px]">{m.content}</div>
+                    <FormattedMessage content={m.content} />
 
-                    {/* Grounded RAG Sources Drawer */}
+                    {/* Minimal Sources Chip */}
                     {m.sources && m.sources.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-white/10 space-y-1">
-                        <div className="flex items-center gap-1 text-[8.5px] text-slate-400 uppercase tracking-wider font-semibold">
-                          <Database className="w-2.5 h-2.5 text-[#00E5FF]" />
-                          <span>Grounded Evidence & Telemetry Sources:</span>
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {m.sources.map((s, idx) => (
-                            <span
-                              key={idx}
-                              title={s.details}
-                              className="px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-[8px] text-[#00E5FF]/90 font-mono flex items-center gap-1"
-                            >
-                              <span>{s.name}</span>
-                            </span>
-                          ))}
-                        </div>
+                      <div className="mt-2.5 pt-2 border-t border-white/10 flex flex-wrap items-center gap-1.5 font-sans">
+                        <span className="text-[9px] text-slate-400">Sources:</span>
+                        {m.sources.slice(0, 4).map((s, idx) => (
+                          <span
+                            key={idx}
+                            title={s.details}
+                            className="px-1.5 py-0.5 rounded bg-white/[0.05] border border-white/10 text-[9px] text-[#00E5FF] font-mono"
+                          >
+                            {s.name}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -311,34 +401,39 @@ export default function GlobalAssistantBar({
               ))}
 
               {loading && (
-                <div className="flex items-center gap-2 p-3 bg-black/60 border border-[#00E5FF]/30 rounded-xl text-slate-300 text-[11px] animate-pulse">
+                <div className="flex items-center gap-2 p-3 bg-white/[0.04] border border-[#00E5FF]/30 rounded-xl text-slate-300 text-[12px] font-sans animate-pulse">
                   <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00E5FF]" />
-                  <span>Cross-referencing satellite observations, seismic feeds, and live telemetry...</span>
+                  <span>Checking satellite observations, live feeds, and planetary telemetry...</span>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
             {/* Quick Action Suggested Chips */}
-            <div className="px-4 py-2 border-t border-white/10 bg-white/[0.01] flex items-center gap-1.5 overflow-x-auto scrollbar-none">
-              <span className="text-[8.5px] text-slate-500 uppercase tracking-wider shrink-0">Prompts:</span>
+            <div className="px-4 py-2 border-t border-white/10 bg-white/[0.01] flex items-center gap-1.5 overflow-x-auto scrollbar-none font-sans">
               <button
-                onClick={() => handleSendMessage('Analyse this active area for vegetation and land cover change.')}
-                className="px-2 py-0.5 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/20 border border-white/10 hover:border-[#00E5FF]/50 text-[9px] text-slate-300 hover:text-white transition-all shrink-0"
+                onClick={() => handleSendMessage('What can I do on ORBINEX?')}
+                className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[10px] text-slate-300 hover:text-white transition-all shrink-0"
               >
-                🛰️ Analyse Active AOI
+                ✨ What can I do here?
               </button>
               <button
-                onClick={() => handleSendMessage('Explain the active earthquake alerts in the last 24 hours.')}
-                className="px-2 py-0.5 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/20 border border-white/10 hover:border-[#00E5FF]/50 text-[9px] text-slate-300 hover:text-white transition-all shrink-0"
+                onClick={() => handleSendMessage('How do I compare before and after satellite imagery?')}
+                className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[10px] text-slate-300 hover:text-white transition-all shrink-0"
               >
-                🌋 Global Earthquakes
+                🛰️ Compare Satellite Scenes
               </button>
               <button
-                onClick={() => handleSendMessage('What is the operational status of the Copernicus Sentinel pipeline?')}
-                className="px-2 py-0.5 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/20 border border-white/10 hover:border-[#00E5FF]/50 text-[9px] text-slate-300 hover:text-white transition-all shrink-0"
+                onClick={() => handleSendMessage('How do I draw an Area of Interest (AOI) on the map?')}
+                className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[10px] text-slate-300 hover:text-white transition-all shrink-0"
               >
-                📡 Sentinel Pipeline Status
+                📐 How to Draw AOI
+              </button>
+              <button
+                onClick={() => handleSendMessage('How do I generate and download a satellite PDF intelligence report?')}
+                className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[10px] text-slate-300 hover:text-white transition-all shrink-0"
+              >
+                📄 Generate PDF Report
               </button>
             </div>
           </motion.div>

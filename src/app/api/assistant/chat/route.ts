@@ -23,17 +23,23 @@ export async function POST(req: NextRequest) {
     const { contextBlock, sources } = await buildGroundedContext(message, context as AssistantContext);
 
     // 2. Formulate System Prompt
-    const systemPrompt = `You are ORBINEX Planetary AI Assistant — the built-in intelligence agent of the ORBINEX Global Earth Observation and Geospatial Intelligence Platform.
+    const systemPrompt = `You are ORBINEX AI — a friendly, minimal, intelligent assistant built exclusively for this website (ORBINEX: Global Earth Observation & Geospatial Intelligence Platform).
 
-## OPERATIONAL GUIDELINES:
-1. GROUNDED IN TRUTH: Base your responses strictly on the verified data retrieved from ORBINEX feeds and satellite observation records provided in the context below. Never invent live events, coordinates, sensor measurements, or satellite pass dates.
-2. SATELLITE & AOI AWARENESS: When an Area of Interest (AOI) is provided in the context, refer specifically to its name, coordinates, bounding box, and surface area. If multi-temporal change detection metrics are present, report the exact percentage deltas for vegetation, water, and surface disturbance.
-3. MILITARY/PALANTIR BREVITY: Provide structured, authoritative, analytical answers with inverted-pyramid clarity. Use markdown headers, bold highlights, and clean bullet points.
-4. HONEST LIMITATIONS: If requested data or satellite imagery for a specific date is unavailable, state this clearly without hallucinating. Distinguish verified physical measurements from analytical interpretations.
+## CORE OPERATIONAL RULES (CHATGPT STYLE):
+1. MINIMAL & USER-FRIENDLY: Speak naturally, warmly, and clearly like ChatGPT. Keep answers brief (typically 2-3 short sentences or 2-3 crisp bullet points). Avoid wall-of-text answers, robotic preambles, and repetitive disclaimers.
+2. STRICTLY ABOUT THIS WEBSITE: You only help with ORBINEX features and Earth observation:
+   - Comparing BEFORE vs AFTER satellite imagery (Copernicus Sentinel-2 Optical and Sentinel-1 SAR Radar)
+   - Drawing an Area of Interest (AOI) anywhere on the globe to detect surface changes (vegetation/forest loss, water shifts, ground disturbance)
+   - Generating publication-grade PDF Satellite Intelligence Reports
+   - Viewing live global feeds: CCTV traffic cameras, live flights (ADS-B), ship tracking (AIS), earthquake alerts, wildfires, and weather
+   - Navigating to locations worldwide (including small towns, colleges, and rural plots)
+   *If the user asks about unrelated topics (e.g., general coding, cooking, movies, politics, or unrelated chit-chat), politely decline in one short friendly sentence explaining that you are exclusively dedicated to ORBINEX planetary intelligence, and invite them to explore map or satellite data.*
+3. SATELLITE & MAP AWARE: If an active AOI or map coordinates are present in the context, reference them naturally (e.g., "For your selected area over Western Ghats...").
+4. CLEAN FORMATTING: Use clean markdown with bold highlights and concise bullet points. No unnecessary fluff.
 
-=== CURRENT RETRIEVED ORBINEX DATA CONTEXT ===
+=== RETRIEVED ORBINEX DATA CONTEXT ===
 ${contextBlock}
-==============================================`;
+======================================`;
 
     // 3. Assemble Chat Messages
     const formattedMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -54,7 +60,12 @@ ${contextBlock}
 
     // 4. Query Groq API
     let answer = '';
-    const modelsToTry = ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'];
+    const modelsToTry = [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'llama3-70b-8192',
+      'mixtral-8x7b-32768',
+    ];
 
     for (const model of modelsToTry) {
       try {
@@ -67,10 +78,10 @@ ${contextBlock}
           body: JSON.stringify({
             model,
             messages: formattedMessages,
-            temperature: 0.2,
-            max_tokens: 1024,
+            temperature: 0.3,
+            max_tokens: 512,
           }),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(15000),
         });
 
         if (groqRes.ok) {
@@ -87,15 +98,7 @@ ${contextBlock}
 
     if (!answer) {
       // Graceful fallback if upstream quota or network issue
-      answer = `### ORBINEX Grounded Telemetry Assessment
-**Target:** ${context?.activeAOI?.name || 'Global Map View'}
-
-I have retrieved the active geospatial records:
-- **Location:** ${context?.activeAOI?.name || `${context?.viewState?.lat.toFixed(2)}°N, ${context?.viewState?.lng.toFixed(2)}°E`}
-- **Footprint Area:** ~${context?.activeAOI?.areaKm2 ? `${context.activeAOI.areaKm2.toFixed(1)} km²` : 'Global Overview'}
-${context?.activeAOI?.changeAnalysis ? `- **Observed Delta:** ${context.activeAOI.changeAnalysis.total_change_pct}% total change detected.` : '- **Satellite Pipeline:** Sentinel-1 SAR & Sentinel-2 Optical monitoring active.'}
-
-*(AI generation service temporarily experiencing high upstream latency. Raw telemetry successfully grounded from verified platform sources.)*`;
+      answer = `**I'm connected to ORBINEX planetary telemetry.**\n\n- **Target Area:** ${context?.activeAOI?.name || 'Global View'}\n- **Satellite Constellations:** Sentinel-1 SAR & Sentinel-2 Optical active.\n\nHow can I help you? You can draw a box on the map to analyze surface changes or generate a full PDF report.`;
     }
 
     return NextResponse.json({
