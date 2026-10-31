@@ -2402,13 +2402,46 @@ export default function Dashboard() {
         onClose={() => {
           setShowSatelliteCompare(false);
           setIsDrawingSatelliteAOI(false);
+          setIsPickingSatellitePoint(false);
         }}
         onStartDrawAOI={(mode) => {
           setIsDrawingSatelliteAOI(true);
           setDrawMode(mode || 'rectangle');
         }}
+        isPickingPoint={isPickingSatellitePoint}
+        onTogglePickPoint={(isPicking) => setIsPickingSatellitePoint(isPicking)}
+        mapStyle={mapStyle}
+        onToggleMapStyle={(style) => setMapStyle(style)}
+        onUpdateAOI={(newAoi) => {
+          setSatelliteDrawnAOI(newAoi);
+          const ring = newAoi.coords;
+          const shape: DrawnShape = {
+            id: newAoi.id,
+            name: newAoi.name,
+            kind: 'rectangle',
+            geojson: {
+              type: 'Feature',
+              properties: { name: newAoi.name, areaKm2: newAoi.areaKm2 },
+              geometry: {
+                type: 'Polygon',
+                coordinates: [ring],
+              },
+            },
+            areaKm2: newAoi.areaKm2,
+            perimeterKm: 8 * (newAoi.radiusKm || Math.sqrt(newAoi.areaKm2) / 2),
+            color: '#00E5FF',
+            visible: true,
+          };
+          setDrawnPolygons((prev) => [
+            shape,
+            ...prev.filter((p) => !p.id.startsWith('aoi-buffer-') && !p.id.startsWith('aoi-drawn-')),
+          ]);
+        }}
         drawnAOI={satelliteDrawnAOI}
-        onClearDrawnAOI={() => setSatelliteDrawnAOI(null)}
+        onClearDrawnAOI={() => {
+          setSatelliteDrawnAOI(null);
+          setDrawnPolygons((prev) => prev.filter((p) => !p.id.startsWith('aoi-buffer-') && !p.id.startsWith('aoi-drawn-')));
+        }}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
         onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl, footprintBbox }) => {
           const scene = afterScene || beforeScene;

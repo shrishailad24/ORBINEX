@@ -82,6 +82,8 @@ interface SatelliteComparePanelProps {
   }) => void;
   onTogglePickPoint?: (isPicking: boolean) => void;
   isPickingPoint?: boolean;
+  mapStyle?: 'dark' | 'satellite';
+  onToggleMapStyle?: (style: 'dark' | 'satellite') => void;
 }
 
 export default function SatelliteComparePanel({
@@ -95,6 +97,8 @@ export default function SatelliteComparePanel({
   onUpdateAOI,
   onTogglePickPoint,
   isPickingPoint = false,
+  mapStyle = 'dark',
+  onToggleMapStyle,
 }: SatelliteComparePanelProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(STRATEGIC_PRESETS[0].id);
   const [activeLocation, setActiveLocation] = useState<{
@@ -177,10 +181,22 @@ export default function SatelliteComparePanel({
     };
   }, []);
 
+  const getRadiusZoom = (r: number) => {
+    if (r <= 0.5) return 16.5;
+    if (r <= 1.0) return 15.5;
+    if (r <= 3.0) return 14.5;
+    if (r <= 5.0) return 13.5;
+    if (r <= 10.0) return 12.2;
+    if (r <= 20.0) return 11.0;
+    return 10.0;
+  };
+
   const handleUpdateRadius = (newRadiusKm: number) => {
     setSurroundingRadiusKm(newRadiusKm);
     const updatedAoi = computeBufferAOI(activeLocation.lat, activeLocation.lng, newRadiusKm, activeLocation.name);
     onUpdateAOI?.(updatedAoi);
+    // Smoothly fly camera to optimal zoom for this footprint
+    onLocate?.(activeLocation.lat, activeLocation.lng, getRadiusZoom(newRadiusKm));
   };
 
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
@@ -745,6 +761,38 @@ export default function SatelliteComparePanel({
               <span className="px-2 py-0.5 rounded bg-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] text-[9px] font-bold font-mono">
                 ±{surroundingRadiusKm.toFixed(1)} km ({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)
               </span>
+            </div>
+
+            {/* High-Res Satellite Basemap Quick Switcher */}
+            <div className="flex items-center justify-between p-1.5 rounded bg-black/60 border border-white/10">
+              <span className="text-[8.5px] text-slate-300 flex items-center gap-1">
+                <Eye className="w-3 h-3 text-[#00E5FF]" />
+                <span>Map Basemap:</span>
+              </span>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => onToggleMapStyle?.('dark')}
+                  className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all ${
+                    mapStyle === 'dark'
+                      ? 'bg-cyan-500/25 border border-cyan-400 text-cyan-300 shadow-[0_0_8px_rgba(0,229,255,0.3)]'
+                      : 'bg-white/5 border border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Dark Space
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleMapStyle?.('satellite')}
+                  className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase transition-all ${
+                    mapStyle === 'satellite'
+                      ? 'bg-emerald-500/30 border border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
+                      : 'bg-white/5 border border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  🛰️ High-Res SAT
+                </button>
+              </div>
             </div>
 
             <p className="text-[8.5px] text-slate-300 leading-tight">
