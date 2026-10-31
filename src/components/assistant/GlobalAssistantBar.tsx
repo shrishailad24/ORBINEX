@@ -345,108 +345,59 @@ export default function GlobalAssistantBar({
         )}
       </AnimatePresence>
 
-      {/* Main Persistent Assistant Bar (Matching Screenshot UI) */}
-      <div className="bg-[#070D18]/95 backdrop-blur-2xl border border-[#00E5FF]/40 rounded-2xl shadow-[0_0_40px_rgba(0,0,0,0.8),0_0_20px_rgba(0,229,255,0.18)] p-2.5 space-y-1.5 transition-all">
-        {/* Top Status Row */}
-        <div className="flex items-center justify-between px-1.5">
-          <div className="flex items-center gap-2">
-            {/* Logo glyph */}
-            <div className="w-4 h-4 rounded-full border border-[#00E5FF] flex items-center justify-center">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-pulse" />
-            </div>
-            <span className="text-xs font-bold text-white tracking-widest uppercase">
-              ORBINEX AI
-            </span>
-            <span
-              className={`px-1.5 py-0.2 rounded text-[8px] font-bold tracking-wider uppercase border transition-all ${
-                isListening
-                  ? 'bg-red-500/20 text-red-400 border-red-500 animate-pulse'
-                  : loading
-                  ? 'bg-amber-500/20 text-amber-400 border-amber-500'
-                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
-              }`}
-            >
-              {isListening ? 'LISTENING' : loading ? 'THINKING' : 'READY'}
-            </span>
-          </div>
+      {/* Minimal Capsule Assistant Bar (Exact Match with Reference Design) */}
+      <div className="relative flex items-center gap-3 bg-[#070D18]/90 backdrop-blur-2xl border border-[#00E5FF]/40 hover:border-[#00E5FF]/70 focus-within:border-[#00E5FF] rounded-full px-4 py-2 shadow-[0_0_35px_rgba(0,0,0,0.85),0_0_20px_rgba(0,229,255,0.18)] transition-all">
+        {/* Sparkle icon */}
+        <Sparkles className="w-4 h-4 text-[#00E5FF] shrink-0 animate-pulse" />
 
-          <div className="flex items-center gap-2">
-            {/* Audio Readout Toggle */}
-            <button
-              onClick={() => setTtsEnabled(!ttsEnabled)}
-              title={ttsEnabled ? 'Mute AI speech readout' : 'Enable AI speech readout'}
-              className={`p-1 rounded transition-colors ${
-                ttsEnabled ? 'text-[#00E5FF] hover:bg-[#00E5FF]/20' : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {ttsEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            </button>
+        {/* Text Input */}
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage();
+            }
+          }}
+          placeholder="Ask ORBINEX anything about our planet..."
+          className="w-full bg-transparent text-white text-[12.5px] font-mono placeholder:text-slate-500 focus:outline-none tracking-wide"
+        />
 
-            {/* Expand / Minimize Window Toggle */}
-            {messages.length > 0 && (
-              <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 text-slate-400 hover:text-white transition-colors"
-                title={isExpanded ? 'Minimize Dossier' : 'Expand Dossier'}
-              >
-                {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Input Capsule Bar */}
-        <div className="flex items-center gap-2 bg-black/60 border border-[#00E5FF]/30 hover:border-[#00E5FF]/60 rounded-full px-3.5 py-2 transition-all shadow-inner focus-within:border-[#00E5FF] focus-within:shadow-[0_0_15px_rgba(0,229,255,0.25)]">
-          <Sparkles className="w-4 h-4 text-[#00E5FF] shrink-0 animate-pulse" />
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage();
-              }
-            }}
-            placeholder="Ask ORBINEX anything about our planet..."
-            className="w-full bg-transparent text-white text-xs placeholder:text-slate-500 focus:outline-none"
-          />
-
-          {/* Voice Input Button */}
+        {/* View Previous Response Indicator Badge (if minimized) */}
+        {messages.length > 0 && !isExpanded && (
           <button
-            onClick={toggleVoiceInput}
-            title={isListening ? 'Stop listening' : 'Speak using microphone'}
-            className={`p-1.5 rounded-full transition-all shrink-0 ${
-              isListening
-                ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.7)] animate-bounce'
-                : 'text-slate-400 hover:text-[#00E5FF] hover:bg-white/5'
-            }`}
+            onClick={() => setIsExpanded(true)}
+            className="px-2 py-0.5 rounded-full bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 text-[#00E5FF] text-[8.5px] font-mono tracking-wider shrink-0 transition-colors"
+            title="Expand conversation"
           >
-            {isListening ? <Mic className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            History ({messages.length})
           </button>
+        )}
 
-          {/* Send Button */}
-          <button
-            onClick={() => handleSendMessage()}
-            disabled={!input.trim() || loading}
-            title="Send query"
-            className="p-1.5 rounded-full bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/40 text-[#00E5FF] hover:text-white transition-all disabled:opacity-30 shrink-0"
-          >
-            <Send className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {/* Voice Input Button */}
+        <button
+          onClick={toggleVoiceInput}
+          title={isListening ? 'Stop listening' : 'Speak using microphone'}
+          className={`p-1.5 rounded-full transition-all shrink-0 ${
+            isListening
+              ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.7)] animate-bounce'
+              : 'text-slate-400 hover:text-[#00E5FF] hover:bg-white/5'
+          }`}
+        >
+          <Mic className="w-4 h-4" />
+        </button>
 
-        {/* Subtitle Footer */}
-        <div className="px-2 pt-0.5 flex items-center justify-between text-[9px] text-slate-400 tracking-wider">
-          <span className="truncate">
-            Text • Voice • RAG • Satellite intelligence • Map-aware AI
-          </span>
-          {activeAOI && (
-            <span className="text-emerald-400 font-semibold shrink-0">
-              ● Connected to Active AOI ({activeAOI.areaKm2.toFixed(0)} km²)
-            </span>
-          )}
-        </div>
+        {/* Circular Send Button */}
+        <button
+          onClick={() => handleSendMessage()}
+          disabled={!input.trim() || loading}
+          title="Send query"
+          className="w-7 h-7 rounded-full bg-[#00E5FF]/10 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 hover:border-[#00E5FF] flex items-center justify-center text-[#00E5FF] hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-[#00E5FF]/10 disabled:hover:border-[#00E5FF]/40 shrink-0"
+        >
+          <Send className="w-3.5 h-3.5" />
+        </button>
       </div>
     </div>
   );
