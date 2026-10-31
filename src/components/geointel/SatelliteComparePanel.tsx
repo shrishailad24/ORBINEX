@@ -165,7 +165,7 @@ export default function SatelliteComparePanel({
         });
         onLocate?.(centerLat, centerLng, 12);
       });
-  }, [drawnAOI, onLocate]);
+  }, [drawnAOI?.id]);
 
   const handleRunAnalysis = async () => {
     if (!comparison?.before.matchedScene?.thumbnailUrl || !comparison?.after.matchedScene?.thumbnailUrl) return;
@@ -224,7 +224,7 @@ export default function SatelliteComparePanel({
         platform: comparison.before.matchedScene.platform,
         cloudCover: comparison.before.matchedScene.cloudCover,
         thumbnailUrl: comparison.before.matchedScene.thumbnailUrl,
-        imageUrl: comparison.before.matchedScene.visualUrl || comparison.before.matchedScene.thumbnailUrl,
+        imageUrl: comparison.before.matchedScene.thumbnailUrl || comparison.before.matchedScene.visualUrl,
       } : {
         sceneId: 'HISTORICAL_BASELINE',
         datetime: beforeDate,
@@ -240,7 +240,7 @@ export default function SatelliteComparePanel({
         platform: comparison.after.matchedScene.platform,
         cloudCover: comparison.after.matchedScene.cloudCover,
         thumbnailUrl: comparison.after.matchedScene.thumbnailUrl,
-        imageUrl: comparison.after.matchedScene.visualUrl || comparison.after.matchedScene.thumbnailUrl,
+        imageUrl: comparison.after.matchedScene.thumbnailUrl || comparison.after.matchedScene.visualUrl,
       } : {
         sceneId: 'CONTEMPORARY_ACQUISITION',
         datetime: afterDate,

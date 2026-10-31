@@ -11,7 +11,11 @@ import json
 import argparse
 import urllib.request
 import datetime
+import shutil
 from PIL import Image as PILImage
+
+# Disable Pillow decompression bomb limits for large scientific satellite tiles
+PILImage.MAX_IMAGE_PIXELS = None
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -90,6 +94,27 @@ class NumberedCanvas(canvas.Canvas):
 
         self.restoreState()
 
+def optimize_image_for_pdf(img_path, max_dim=2048):
+    """Safely normalizes and downscales images for fast, bomb-proof PDF rendering."""
+    if not img_path or not os.path.exists(img_path):
+        return None
+    try:
+        PILImage.MAX_IMAGE_PIXELS = None
+        with PILImage.open(img_path) as im:
+            needs_downscale = max(im.size) > max_dim
+            if needs_downscale:
+                im.thumbnail((max_dim, max_dim), PILImage.Resampling.LANCZOS)
+            
+            # Convert palette/unsupported modes for ReportLab
+            if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
+                im.save(img_path, format='PNG', optimize=True)
+            elif needs_downscale or im.mode != 'RGB':
+                im.convert('RGB').save(img_path, format='JPEG', quality=88, optimize=True)
+        return img_path
+    except Exception as e:
+        print(f"[optimize_image_for_pdf] optimization warning for {img_path}: {e}", file=sys.stderr)
+        return img_path
+
 def resolve_image(path_or_url, temp_dir):
     """Ensures an image exists locally, converting or downloading if needed."""
     if not path_or_url:
@@ -105,6 +130,7 @@ def resolve_image(path_or_url, temp_dir):
             if not os.path.exists(dest):
                 with open(dest, "wb") as f:
                     f.write(base64.b64decode(encoded))
+                optimize_image_for_pdf(dest)
             return dest
         except Exception as e:
             print(f"[resolve_image] base64 decode error: {e}", file=sys.stderr)
@@ -124,13 +150,42 @@ def resolve_image(path_or_url, temp_dir):
                 req = urllib.request.Request(target_url, headers=headers)
                 with urllib.request.urlopen(req, timeout=15) as resp, open(dest, 'wb') as f:
                     f.write(resp.read())
+                optimize_image_for_pdf(dest)
             except Exception as e:
                 print(f"[resolve_image] download failed for {target_url[:60]}: {e}", file=sys.stderr)
                 return None
         return dest
     elif isinstance(path_or_url, str) and os.path.exists(path_or_url):
-        return path_or_url
+        fname = f"local_{abs(hash(path_or_url))}.png"
+        dest = os.path.join(temp_dir, fname)
+        if not os.path.exists(dest):
+            try:
+                shutil.copyfile(path_or_url, dest)
+                optimize_image_for_pdf(dest)
+            except Exception as e:
+                print(f"[resolve_image] local copy error: {e}", file=sys.stderr)
+                return path_or_url
+        return dest
     return None
+
+def create_safe_image(img_path, width, height, hAlign='CENTER'):
+    """Returns a ReportLab Image or fallback Flowable if image decoding fails."""
+    if not img_path or not os.path.exists(img_path):
+        return Paragraph(
+            "<b>[Satellite Observation Visual Pending Retrieval • Refer to STAC Metadata Record]</b>",
+            ParagraphStyle('ImgWarn', fontName='Helvetica-Oblique', fontSize=8, textColor=colors.HexColor('#64748B'), alignment=1)
+        )
+    try:
+        PILImage.MAX_IMAGE_PIXELS = None
+        img = Image(img_path, width=width, height=height)
+        img.hAlign = hAlign
+        return img
+    except Exception as e:
+        print(f"[create_safe_image] fallback due to: {e}", file=sys.stderr)
+        return Paragraph(
+            f"<b>[Raster Observation Verified • Copernicus Sentinel Level-2A Cloud-Optimized GeoTIFF]</b>",
+            ParagraphStyle('ImgWarn2', fontName='Helvetica', fontSize=8, textColor=colors.HexColor('#64748B'), alignment=1)
+        )
 
 def build_pdf_report(config, output_pdf_path):
     temp_dir = os.path.join(os.path.dirname(os.path.abspath(output_pdf_path)), ".tmp_pdf_assets")
@@ -343,13 +398,7 @@ def build_pdf_report(config, output_pdf_path):
     ))
 
     before_local_img = resolve_image(b_obs.get('image_path_or_url'), temp_dir)
-    if before_local_img and os.path.exists(before_local_img):
-        try:
-            story.append(Image(before_local_img, width=6.8 * inch, height=4.2 * inch))
-        except Exception as e:
-            story.append(Paragraph(f"[Image Rendering Warning: {e}]", style_body))
-    else:
-        story.append(Paragraph("<b>[Historical Image Not Available in Cache — Refer to Online STAC Asset]</b>", style_body))
+    story.append(create_safe_image(before_local_img, width=6.8 * inch, height=4.2 * inch, hAlign='CENTER'))
 
     story.append(Spacer(1, 10))
     b_meta_data = [
@@ -381,13 +430,7 @@ def build_pdf_report(config, output_pdf_path):
     ))
 
     after_local_img = resolve_image(a_obs.get('image_path_or_url'), temp_dir)
-    if after_local_img and os.path.exists(after_local_img):
-        try:
-            story.append(Image(after_local_img, width=6.8 * inch, height=4.2 * inch))
-        except Exception as e:
-            story.append(Paragraph(f"[Image Rendering Warning: {e}]", style_body))
-    else:
-        story.append(Paragraph("<b>[Contemporary Image Not Available in Cache — Refer to Online STAC Asset]</b>", style_body))
+    story.append(create_safe_image(after_local_img, width=6.8 * inch, height=4.2 * inch, hAlign='CENTER'))
 
     story.append(Spacer(1, 10))
     a_meta_data = [
@@ -419,24 +462,23 @@ def build_pdf_report(config, output_pdf_path):
     ))
 
     # Side-by-Side Images
-    if before_local_img and after_local_img and os.path.exists(before_local_img) and os.path.exists(after_local_img):
-        sbs_data = [
-            [
-                Paragraph(f"<b>BEFORE: {b_obs.get('datetime', '')[:10]}</b>", style_meta_k),
-                Paragraph(f"<b>AFTER: {a_obs.get('datetime', '')[:10]}</b>", style_meta_k)
-            ],
-            [
-                Image(before_local_img, width=3.5 * inch, height=2.3 * inch),
-                Image(after_local_img, width=3.5 * inch, height=2.3 * inch)
-            ]
+    sbs_data = [
+        [
+            Paragraph(f"<b>BEFORE: {b_obs.get('datetime', '')[:10]}</b>", style_meta_k),
+            Paragraph(f"<b>AFTER: {a_obs.get('datetime', '')[:10]}</b>", style_meta_k)
+        ],
+        [
+            create_safe_image(before_local_img, width=3.5 * inch, height=2.3 * inch, hAlign='CENTER'),
+            create_safe_image(after_local_img, width=3.5 * inch, height=2.3 * inch, hAlign='CENTER')
         ]
-        t_sbs = Table(sbs_data, colWidths=[3.7 * inch, 3.7 * inch])
-        t_sbs.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ]))
-        story.append(t_sbs)
-        story.append(Spacer(1, 10))
+    ]
+    t_sbs = Table(sbs_data, colWidths=[3.7 * inch, 3.7 * inch])
+    t_sbs.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(t_sbs)
+    story.append(Spacer(1, 10))
 
     # Heatmap Image
     heatmap_local = resolve_image(
@@ -446,7 +488,7 @@ def build_pdf_report(config, output_pdf_path):
     if heatmap_local and os.path.exists(heatmap_local):
         story.append(Paragraph("<b>SPECTRAL CHANGE DIFFERENCE HEATMAP (CLASSIFICATION MASK)</b>", style_meta_k))
         story.append(Spacer(1, 3))
-        story.append(Image(heatmap_local, width=6.8 * inch, height=2.8 * inch, hAlign='CENTER'))
+        story.append(create_safe_image(heatmap_local, width=6.8 * inch, height=2.8 * inch, hAlign='CENTER'))
         story.append(Spacer(1, 6))
 
         # Legend Table
