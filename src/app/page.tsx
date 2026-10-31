@@ -2381,8 +2381,8 @@ export default function Dashboard() {
       <GlobalAssistantBar
         activeAOI={satelliteDrawnAOI}
         viewState={{
-          lat: mouseCoords?.lat ?? mapView?.latitude ?? 20,
-          lng: mouseCoords?.lng ?? 0,
+          lat: mouseCoordsRef.current?.lat ?? mapView?.latitude ?? 20,
+          lng: mouseCoordsRef.current?.lng ?? 0,
           zoom: mapView?.zoom ?? 3,
         }}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 12, ts: Date.now() })}
