@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Layers,
@@ -66,8 +66,21 @@ interface SatelliteComparePanelProps {
     bbox: [number, number, number, number];
     center: [number, number];
     areaKm2: number;
+    radiusKm?: number;
   } | null;
   onClearDrawnAOI?: () => void;
+  onUpdateAOI?: (aoi: {
+    id: string;
+    name: string;
+    kind: string;
+    coords: number[][];
+    bbox: [number, number, number, number];
+    center: [number, number];
+    areaKm2: number;
+    radiusKm?: number;
+  }) => void;
+  onTogglePickPoint?: (isPicking: boolean) => void;
+  isPickingPoint?: boolean;
 }
 
 export default function SatelliteComparePanel({
@@ -78,6 +91,9 @@ export default function SatelliteComparePanel({
   onStartDrawAOI,
   drawnAOI,
   onClearDrawnAOI,
+  onUpdateAOI,
+  onTogglePickPoint,
+  isPickingPoint = false,
 }: SatelliteComparePanelProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(STRATEGIC_PRESETS[0].id);
   const [activeLocation, setActiveLocation] = useState<{
@@ -104,6 +120,66 @@ export default function SatelliteComparePanel({
   const [contrastStretch, setContrastStretch] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(null);
+
+  // Surrounding area & footprint configuration
+  const [surroundingRadiusKm, setSurroundingRadiusKm] = useState<number>(5.0);
+
+  // Sync radius when drawnAOI changes
+  useEffect(() => {
+    if (drawnAOI?.radiusKm) {
+      setSurroundingRadiusKm(drawnAOI.radiusKm);
+    } else if (drawnAOI?.areaKm2) {
+      setSurroundingRadiusKm(Math.max(0.5, Math.min(35, Math.round(Math.sqrt(drawnAOI.areaKm2) / 2 * 10) / 10)));
+    }
+  }, [drawnAOI?.id]);
+
+  const currentBbox = useMemo<[number, number, number, number]>(() => {
+    if (drawnAOI?.bbox) return drawnAOI.bbox;
+    const deltaLat = surroundingRadiusKm / 111.32;
+    const cosLat = Math.cos((activeLocation.lat * Math.PI) / 180);
+    const deltaLng = surroundingRadiusKm / (111.32 * Math.max(0.01, cosLat));
+    return [
+      Number((activeLocation.lng - deltaLng).toFixed(6)),
+      Number((activeLocation.lat - deltaLat).toFixed(6)),
+      Number((activeLocation.lng + deltaLng).toFixed(6)),
+      Number((activeLocation.lat + deltaLat).toFixed(6)),
+    ];
+  }, [drawnAOI?.bbox, activeLocation.lat, activeLocation.lng, surroundingRadiusKm]);
+
+  const computeBufferAOI = useCallback((lat: number, lng: number, radiusKm: number, label?: string) => {
+    const deltaLat = radiusKm / 111.32;
+    const cosLat = Math.cos((lat * Math.PI) / 180);
+    const deltaLng = radiusKm / (111.32 * Math.max(0.01, cosLat));
+    const minLng = Number((lng - deltaLng).toFixed(6));
+    const maxLng = Number((lng + deltaLng).toFixed(6));
+    const minLat = Number((lat - deltaLat).toFixed(6));
+    const maxLat = Number((lat + deltaLat).toFixed(6));
+    const areaKm2 = Number(((2 * radiusKm) * (2 * radiusKm)).toFixed(2));
+    const bbox: [number, number, number, number] = [minLng, minLat, maxLng, maxLat];
+    const coords = [
+      [minLng, minLat],
+      [maxLng, minLat],
+      [maxLng, maxLat],
+      [minLng, maxLat],
+      [minLng, minLat],
+    ];
+    return {
+      id: `aoi-buffer-${lat.toFixed(4)}-${lng.toFixed(4)}`,
+      name: label || `Target AOI [${lat.toFixed(3)}°, ${lng.toFixed(3)}°] (${areaKm2} km²)`,
+      kind: 'rectangle',
+      coords,
+      bbox,
+      center: [lat, lng] as [number, number],
+      areaKm2,
+      radiusKm,
+    };
+  }, []);
+
+  const handleUpdateRadius = (newRadiusKm: number) => {
+    setSurroundingRadiusKm(newRadiusKm);
+    const updatedAoi = computeBufferAOI(activeLocation.lat, activeLocation.lng, newRadiusKm, activeLocation.name);
+    onUpdateAOI?.(updatedAoi);
+  };
 
   // Global search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,13 +285,8 @@ export default function SatelliteComparePanel({
         region: activeLocation.focus || 'Earth Observation Grid',
         lat: activeLocation.lat,
         lng: activeLocation.lng,
-        bbox: comparison?.after.matchedScene?.bbox || comparison?.before.matchedScene?.bbox || [
-          activeLocation.lng - 0.05,
-          activeLocation.lat - 0.05,
-          activeLocation.lng + 0.05,
-          activeLocation.lat + 0.05,
-        ],
-        areaKm2: 100.0,
+        bbox: currentBbox,
+        areaKm2: 4 * surroundingRadiusKm * surroundingRadiusKm,
       };
 
       const beforeObs = comparison?.before.matchedScene ? {
@@ -318,6 +389,8 @@ export default function SatelliteComparePanel({
         before: beforeDate,
         after: afterDate,
         platform,
+        radiusKm: surroundingRadiusKm.toString(),
+        bbox: currentBbox.join(','),
       });
 
       const res = await fetch(`/api/satellite/compare?${params.toString()}`);
@@ -342,7 +415,7 @@ export default function SatelliteComparePanel({
     } finally {
       setLoading(false);
     }
-  }, [activeLocation.lat, activeLocation.lng, beforeDate, afterDate, platform, opacity, onProjectImagery]);
+  }, [activeLocation.lat, activeLocation.lng, beforeDate, afterDate, platform, opacity, surroundingRadiusKm, currentBbox, onProjectImagery]);
 
   // Initial fetch on location or platform change
   useEffect(() => {
@@ -376,6 +449,8 @@ export default function SatelliteComparePanel({
     });
     setShowDropdown(false);
     setSearchError(null);
+    const newAoi = computeBufferAOI(lat, lng, surroundingRadiusKm, name);
+    onUpdateAOI?.(newAoi);
     onLocate?.(lat, lng, zoom);
   };
 
@@ -391,6 +466,8 @@ export default function SatelliteComparePanel({
     });
     setBeforeDate(preset.suggestedBeforeDate);
     setAfterDate(preset.suggestedAfterDate);
+    const newAoi = computeBufferAOI(preset.lat, preset.lng, surroundingRadiusKm, preset.name);
+    onUpdateAOI?.(newAoi);
     onLocate?.(preset.lat, preset.lng, preset.defaultZoom);
   };
 
@@ -576,22 +653,43 @@ export default function SatelliteComparePanel({
               Select any unknown region directly on the globe by drawing a rectangle or polygon. ORBINEX automatically identifies the geography and retrieves satellite imagery.
             </p>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
+                type="button"
+                onClick={() => onTogglePickPoint?.(!isPickingPoint)}
+                className={`py-1.5 px-1.5 rounded border text-[9.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all ${
+                  isPickingPoint
+                    ? 'bg-amber-500/25 border-amber-400 text-amber-300 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+                    : 'bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border-[#00E5FF] text-white shadow-[0_0_12px_rgba(0,229,255,0.2)]'
+                }`}
+              >
+                <Crosshair className="w-3 h-3 text-[#00E5FF]" />
+                <span>${isPickingPoint ? 'Click Globe...' : 'Pick Point'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => onStartDrawAOI?.('rectangle')}
-                className="py-1.5 px-2 rounded bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF] text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(0,229,255,0.2)]"
+                className="py-1.5 px-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/20 text-slate-300 hover:text-white text-[9.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
               >
                 <Square className="w-3 h-3 text-[#00E5FF]" />
-                <span>Draw Rectangle</span>
+                <span>Rectangle</span>
               </button>
               <button
+                type="button"
                 onClick={() => onStartDrawAOI?.('polygon')}
-                className="py-1.5 px-2 rounded bg-white/5 hover:bg-white/10 border border-white/20 text-slate-300 hover:text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                className="py-1.5 px-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/20 text-slate-300 hover:text-white text-[9.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 transition-all"
               >
                 <Pentagon className="w-3 h-3 text-[#00E5FF]/80" />
-                <span>Draw Polygon</span>
+                <span>Polygon</span>
               </button>
             </div>
+
+            {isPickingPoint && (
+              <div className="p-2 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 text-[9px] flex items-center gap-2 animate-pulse">
+                <Crosshair className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span>POINT PICKER ARMED: Click anywhere on Earth or space to set observation target</span>
+              </div>
+            )}
 
             {drawnAOI && (
               <div className="p-2 rounded bg-black/80 border border-emerald-500/40 space-y-1.5 text-[9px]">
@@ -629,6 +727,96 @@ export default function SatelliteComparePanel({
                 </button>
               </div>
             )}
+          </div>
+
+          {/* SURROUNDING AREA BUFFER (FOOTPRINT) */}
+          <div className="p-3 rounded-lg bg-gradient-to-br from-white/[0.04] to-black/60 border border-[#00E5FF]/30 space-y-2.5 shadow-[0_0_15px_rgba(0,229,255,0.08)]">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-white uppercase tracking-wider">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00E5FF]" />
+                <span className="tracking-widest">SURROUNDING AREA / FOOTPRINT</span>
+              </span>
+              <span className="px-2 py-0.5 rounded bg-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] text-[9px] font-bold font-mono">
+                ±{surroundingRadiusKm.toFixed(1)} km ({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)
+              </span>
+            </div>
+
+            <p className="text-[8.5px] text-slate-300 leading-tight">
+              Adjust the surrounding footprint around the selected observation point for Before & After comparison.
+            </p>
+
+            {/* Quick preset buffer pills */}
+            <div className="grid grid-cols-5 gap-1 text-[8.5px]">
+              {[
+                { r: 0.5, label: '0.5 km', desc: 'Plot' },
+                { r: 1.0, label: '1 km', desc: 'Campus' },
+                { r: 5.0, label: '5 km', desc: 'Town' },
+                { r: 10.0, label: '10 km', desc: 'District' },
+                { r: 25.0, label: '25 km', desc: 'Region' },
+              ].map((item) => (
+                <button
+                  key={item.r}
+                  type="button"
+                  onClick={() => handleUpdateRadius(item.r)}
+                  className={`py-1 px-1 rounded flex flex-col items-center justify-center border transition-all ${
+                    Math.abs(surroundingRadiusKm - item.r) < 0.1
+                      ? 'bg-[#00E5FF]/25 border-[#00E5FF] text-white shadow-[0_0_10px_rgba(0,229,255,0.3)]'
+                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/30 hover:text-white'
+                  }`}
+                >
+                  <span className="font-bold">{item.label}</span>
+                  <span className="text-[7px] text-slate-400">{item.desc}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Continuous range slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[9px] text-slate-300">
+                <span className="text-slate-400">Surrounding Radius</span>
+                <span className="text-white font-mono font-bold text-[9.5px]">
+                  ±{surroundingRadiusKm.toFixed(1)} km <span className="text-slate-400 font-normal">({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)</span>
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="35.0"
+                step="0.5"
+                value={surroundingRadiusKm}
+                onChange={(e) => handleUpdateRadius(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-[#00E5FF]"
+              />
+              <div className="flex justify-between text-[7px] text-slate-500 font-mono">
+                <span>0.5 km (Small Plot)</span>
+                <span>15 km</span>
+                <span>35 km (Metropolitan)</span>
+              </div>
+            </div>
+
+            {/* Calculated Metrics Badges */}
+            <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded bg-black/50 border border-white/5 text-center font-mono">
+              <div>
+                <div className="text-[7.5px] text-slate-400 uppercase">Footprint Area</div>
+                <div className="text-[10px] text-white font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²</div>
+              </div>
+              <div>
+                <div className="text-[7.5px] text-slate-400 uppercase">Hectares</div>
+                <div className="text-[10px] text-[#00E5FF] font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} ha</div>
+              </div>
+              <div>
+                <div className="text-[7.5px] text-slate-400 uppercase">Acres</div>
+                <div className="text-[10px] text-emerald-400 font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm * 247.105).toLocaleString(undefined, { maximumFractionDigits: 0 })} ac</div>
+              </div>
+            </div>
+
+            {/* Active Bounding Box coordinates */}
+            <div className="text-[8px] font-mono text-slate-400 bg-black/60 p-1.5 rounded border border-white/5 flex items-center justify-between">
+              <span className="text-slate-400">BBOX:</span>
+              <span className="text-slate-200 truncate ml-1 font-bold">
+                [{currentBbox.map((n) => n.toFixed(3)).join(', ')}]
+              </span>
+            </div>
           </div>
 
           {/* Preset Selector */}

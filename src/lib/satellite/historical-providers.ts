@@ -94,7 +94,9 @@ export async function buildHistoricalComparison(
   lng: number,
   beforeDate: string,
   afterDate: string,
-  platform: 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS' = 'Sentinel-2'
+  platform: 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS' = 'Sentinel-2',
+  radiusKm: number = 10,
+  bbox?: [number, number, number, number]
 ): Promise<HistoricalComparisonPair> {
   const cleanBefore = beforeDate.split('T')[0];
   const cleanAfter = afterDate.split('T')[0];
@@ -127,6 +129,8 @@ export async function buildHistoricalComparison(
       lng,
       targetDate: cleanBefore,
       platform,
+      radiusKm,
+      bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,
       limit: 3,
     }),
@@ -135,6 +139,8 @@ export async function buildHistoricalComparison(
       lng,
       targetDate: cleanAfter,
       platform,
+      radiusKm,
+      bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,
       limit: 3,
     }),

@@ -59,6 +59,9 @@ interface OsirisMapProps {
   onEntityClick?: (entity: any) => void;
   onMouseCoords?: (coords: { lat: number; lng: number }) => void;
   onRightClick?: (coords: { lat: number; lng: number }) => void;
+  onMapClick?: (coords: { lat: number; lng: number }) => void;
+  isPickingPoint?: boolean;
+  onPickPoint?: (coords: { lat: number; lng: number }) => void;
   onViewStateChange?: (vs: { zoom: number; latitude: number }) => void;
   /** `alertId` also opens that Live Alert's pin once the camera arrives.
    *  `duration` overrides the default 2 s flight. */
@@ -211,12 +214,31 @@ interface AlertPinFeature {
   properties: AlertPinProps;
 }
 
-function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], satelliteImageryLayer = null, drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
+function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightClick, onViewStateChange, onReady, flyToLocation, onMapClick, isPickingPoint = false, onPickPoint, alertPinIds = null, projection = 'globe', terrainEnabled = false, terrainRetry = 0, terrainFocus = 0, onTerrainStatusChange, onLayerOff, mapStyle = 'dark', sweepData, scanTargets = [], demoMode = false, theme = 'core', drawnPolygons = [], arcgisLayers = [], satelliteImageryLayer = null, drawMode = null, onDrawComplete, onDrawProgress, onDrawCancel, drawCommand = null, onMapCenter, onTransitStatus, route = null, userLocation = null, followUser = false, onFollowInterrupt, navigating = false, aircraftAirports = {}, onOiGlobe, onOiSelect, onOiHover, onOiFollow, oiHighlight = null }: OsirisMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   /* The Live Alert pins currently drawn, and the opener for one of them, so
      the feed's locate button can land on a pin and open it. */
+  const isPickingPointRef = useRef(isPickingPoint);
+  const onPickPointRef = useRef(onPickPoint);
+  const onMapClickRef = useRef(onMapClick);
+  useEffect(() => {
+    isPickingPointRef.current = isPickingPoint;
+    onPickPointRef.current = onPickPoint;
+    onMapClickRef.current = onMapClick;
+  }, [isPickingPoint, onPickPoint, onMapClick]);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const canvas = mapRef.current.getCanvas();
+    if (isPickingPoint) {
+      canvas.style.cursor = 'crosshair';
+    } else {
+      canvas.style.cursor = '';
+    }
+  }, [mapReady, isPickingPoint]);
+
   const alertPinsRef = useRef<AlertPinFeature[]>([]);
   const openAlertPinRef = useRef<((id: string) => void) | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -1184,6 +1206,10 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // marker was drawn — including its altitude. A ground-projected hit test
     // would put the target under the satellite instead of on it.
     map.on('click', e => {
+      if (isPickingPointRef.current) {
+        onPickPointRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+        return;
+      }
       const layer = satLayerRef.current;
       if (!layer) return;
       // Defer to any layer that has its own click handler, so a camera or an
@@ -1200,7 +1226,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       // Clicking past every satellite is how a selection is dismissed, so an
       // empty click has to clear the ring and the track rather than leave them
       // lit over nothing.
-      if (idx == null || !p) { clearSat(); return; }
+      if (idx == null || !p) { clearSat(); onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }); return; }
 
       // The readout is a panel, not a MapLibre popup: a popup can only anchor
       // to a ground coordinate, and these markers are drawn at altitude. Any

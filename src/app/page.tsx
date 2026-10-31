@@ -234,6 +234,7 @@ export default function Dashboard() {
     areaKm2: number;
   } | null>(null);
   const [isDrawingSatelliteAOI, setIsDrawingSatelliteAOI] = useState(false);
+  const [isPickingSatellitePoint, setIsPickingSatellitePoint] = useState(false);
   const [showDesktopSearch, setShowDesktopSearch] = useState(false);
   const [showDirections, setShowDirections] = useState(false);
   // A destination Search hands to Directions ("Directions to here"); its stamp remounts the planner with it.
@@ -2335,6 +2336,19 @@ export default function Dashboard() {
                 )}
                 {regionDossier.head_of_state && (<div><div className="hud-label mb-0.5">HEAD OF STATE</div><div className="text-xs text-[var(--gold-primary)]">{regionDossier.head_of_state.name}</div><div className="text-[9px] text-[var(--text-muted)]">{regionDossier.head_of_state.position}</div></div>)}
                 {regionDossier.wikipedia && (<div><div className="hud-label mb-1">INTELLIGENCE BRIEF</div><div className="flex gap-3">{regionDossier.wikipedia.thumbnail && <img src={regionDossier.wikipedia.thumbnail} alt="" className="w-14 h-14 rounded object-cover flex-shrink-0" />}<p className="text-[9px] text-[var(--text-secondary)] leading-relaxed">{regionDossier.wikipedia.extract}</p></div></div>)}
+                {regionDossier.coords && (
+                  <button
+                    onClick={() => {
+                      const c = regionDossier.coords;
+                      setRegionDossier(null);
+                      handlePickPointForSatellite(c);
+                    }}
+                    className="w-full mt-2 py-1.5 px-3 rounded bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF] text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(0,229,255,0.2)]"
+                  >
+                    <Satellite className="w-3 h-3 text-[#00E5FF]" />
+                    <span>Inspect Satellite Before & After (Choose Footprint)</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

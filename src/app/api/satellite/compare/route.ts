@@ -11,6 +11,9 @@ export async function GET(request: Request) {
     const beforeDate = searchParams.get('before') || '2020-01-15';
     const afterDate = searchParams.get('after') || '2024-01-15';
     const platform = (searchParams.get('platform') as 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS') || 'Sentinel-2';
+    const radiusKm = parseFloat(searchParams.get('radiusKm') || '10');
+    const bboxParam = searchParams.get('bbox');
+    const bbox = bboxParam ? (bboxParam.split(',').map(Number) as [number, number, number, number]) : undefined;
 
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return NextResponse.json({
@@ -19,7 +22,7 @@ export async function GET(request: Request) {
       }, { status: 400 });
     }
 
-    const comparison = await buildHistoricalComparison(lat, lng, beforeDate, afterDate, platform);
+    const comparison = await buildHistoricalComparison(lat, lng, beforeDate, afterDate, platform, radiusKm, bbox);
 
     return NextResponse.json({
       success: true,
