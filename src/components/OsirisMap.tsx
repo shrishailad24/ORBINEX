@@ -25,6 +25,7 @@ import LiveNewsPreviews, { type PreviewFeed } from '@/components/LiveNewsPreview
 import { attachTerrain, type TerrainStatus } from '@/lib/map-terrain';
 
 import { applyMapProjection } from '@/lib/map-projection';
+import SpaceBackground from '@/components/SpaceBackground';
 import { attachTransit, type TransitStatus } from '@/lib/transit-layer';
 
 /** The catalogue fields the satellite layer and its popup actually read. */
@@ -406,7 +407,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // so machines that only ever managed WebGL1 are now out of reach either way.
     // Dropping antialias is the last rung left for a struggling GPU.
     const attributeFallbacks: maplibregl.MapOptions['canvasContextAttributes'][] = [
-      undefined,
+      { alpha: true, powerPreference: 'high-performance' },
       { powerPreference: 'low-power', failIfMajorPerformanceCaveat: false },
       { powerPreference: 'low-power', failIfMajorPerformanceCaveat: false, antialias: false },
     ];
@@ -2483,7 +2484,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // Switch to globe and fly to the sweep location
     try {
       applyMapProjection(map, 'globe');
-      map.setSky({ 'sky-color': '#0A0A0F', 'sky-horizon-blend': 0.02, 'horizon-color': '#0A0A0F', 'horizon-fog-blend': 0.02 });
+      map.setSky({ 'sky-color': 'rgba(2, 11, 28, 0.45)', 'sky-horizon-blend': 0.25, 'horizon-color': '#0066FF', 'horizon-fog-blend': 0.12, 'fog-color': 'rgba(2, 8, 20, 0.5)', 'fog-ground-blend': 0.85 });
     } catch { /* projection may not be supported */ }
 
     map.flyTo({ center: centerCoord, zoom: 14, pitch: 50, bearing: -20, duration: 3000, essential: true });
@@ -2566,12 +2567,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         if (configureSky && map.getPitch() < 0.5) map.easeTo({ pitch: 20, duration: 1200 });
         try {
           if (configureSky) map.setSky({
-            'sky-color': '#2D2D3E',
-            'sky-horizon-blend': 0.5,
-            'horizon-color': '#0a0a1a',
-            'horizon-fog-blend': 0.3,
-            'fog-color': '#2D2D3E',
-            'fog-ground-blend': 0.9,
+            'sky-color': 'rgba(2, 11, 28, 0.45)',
+            'sky-horizon-blend': 0.25,
+            'horizon-color': '#0066FF',
+            'horizon-fog-blend': 0.12,
+            'fog-color': 'rgba(2, 8, 20, 0.5)',
+            'fog-ground-blend': 0.85,
           });
         } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
       } else {
@@ -3524,7 +3525,8 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
 
   return (
     <>
-      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
+      <SpaceBackground projection={projection} />
+      <div ref={containerRef} className="absolute inset-0 w-full h-full bg-transparent" />
       {mapReady && mapRef.current && (
         <CctvPreviews
           mapRef={mapRef}
