@@ -3,7 +3,7 @@
  * Defines data structures for STAC items, optical/SAR scenes, historical comparison pairs, and AOI filters.
  */
 
-export type SatellitePlatform = 'Sentinel-2' | 'Sentinel-1' | 'Landsat-8' | 'Landsat-9' | 'NASA-GIBS' | 'Wayback';
+export type SatellitePlatform = 'Sentinel-2' | 'Sentinel-1' | 'Landsat-8' | 'Landsat-9' | 'Landsat' | 'NASA-GIBS' | 'Wayback' | 'High-Res';
 
 export type ImageryModality = 'optical' | 'sar' | 'thermal' | 'composite';
 

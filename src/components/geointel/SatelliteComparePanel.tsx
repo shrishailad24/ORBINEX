@@ -117,7 +117,7 @@ export default function SatelliteComparePanel({
     defaultZoom: STRATEGIC_PRESETS[0].defaultZoom,
   });
 
-  const [platform, setPlatform] = useState<'High-Res' | 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS'>('High-Res');
+  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'High-Res' | 'NASA-GIBS'>('Sentinel-2');
   const [beforeDate, setBeforeDate] = useState(STRATEGIC_PRESETS[0].suggestedBeforeDate);
   const [afterDate, setAfterDate] = useState(STRATEGIC_PRESETS[0].suggestedAfterDate);
   const [maxCloudCover, setMaxCloudCover] = useState(20);
@@ -210,10 +210,9 @@ export default function SatelliteComparePanel({
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
     if (!currentBbox) return scene?.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
 
-    // Sub-meter High-Res Optical Imagery:
-    // If High-Res platform or small plot <= 2.5 km, export exact sub-meter optical imagery!
-    // Never blow up a 3-pixel thumbnail crop!
-    if (platform === 'High-Res' || surroundingRadiusKm <= 2.5) {
+    // Sub-meter High-Res Reference Basemap:
+    // Only when user explicitly selects High-Res
+    if (platform === 'High-Res') {
       const [minLng, minLat, maxLng, maxLat] = currentBbox;
       const rawUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
       return `/api/satellite/asset?url=${encodeURIComponent(rawUrl)}`;
@@ -296,16 +295,18 @@ export default function SatelliteComparePanel({
   }, [drawnAOI?.id]);
 
   const handleRunAnalysis = async () => {
-    if (!comparison?.before.matchedScene?.thumbnailUrl || !comparison?.after.matchedScene?.thumbnailUrl) return;
+    if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
     setAnalyzing(true);
     try {
-      const areaKm2 = drawnAOI?.areaKm2 || 100.0;
+      const areaKm2 = drawnAOI?.areaKm2 || (4 * surroundingRadiusKm * surroundingRadiusKm);
+      const beforeUrl = getSceneImageUrl(comparison.before.matchedScene, true);
+      const afterUrl = getSceneImageUrl(comparison.after.matchedScene, true);
       const res = await fetch('/api/satellite/analyse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          beforeUrl: comparison.before.matchedScene.thumbnailUrl,
-          afterUrl: comparison.after.matchedScene.thumbnailUrl,
+          beforeUrl,
+          afterUrl,
           areaKm2,
         }),
       });
@@ -1105,22 +1106,34 @@ export default function SatelliteComparePanel({
               <span>Constellation / Sensor</span>
               <span className="text-[#00E5FF]">{platform}</span>
             </div>
-            <div className="grid grid-cols-4 gap-1">
-              {(['High-Res', 'Sentinel-2', 'Sentinel-1', 'NASA-GIBS'] as const).map((p) => (
+            <div className="grid grid-cols-5 gap-1">
+              {([
+                { id: 'Sentinel-2', label: 'S2 Optical', badge: '10m' },
+                { id: 'Sentinel-1', label: 'S1 SAR', badge: 'Radar' },
+                { id: 'Landsat', label: 'Landsat', badge: '30m' },
+                { id: 'NASA-GIBS', label: 'GIBS', badge: 'Daily' },
+                { id: 'High-Res', label: 'High-Res', badge: 'Aerial' },
+              ] as const).map((p) => (
                 <button
-                  key={p}
+                  key={p.id}
                   type="button"
-                  onClick={() => setPlatform(p)}
-                  className={`py-1.5 px-1 rounded text-center border text-[8px] uppercase font-bold tracking-wider transition-all ${
-                    platform === p
+                  onClick={() => setPlatform(p.id)}
+                  className={`py-1.5 px-0.5 rounded text-center border text-[8px] uppercase font-bold tracking-wider transition-all flex flex-col items-center justify-center ${
+                    platform === p.id
                       ? 'border-[#00E5FF] bg-[#00E5FF]/25 text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.3)]'
                       : 'border-white/10 bg-white/[0.02] text-slate-400 hover:text-white'
                   }`}
                 >
-                  {p === 'High-Res' ? 'High-Res' : p === 'Sentinel-2' ? 'S2 Optical' : p === 'Sentinel-1' ? 'S1 SAR' : 'NASA GIBS'}
+                  <span>{p.label}</span>
+                  <span className="text-[6.5px] opacity-70 font-mono">{p.badge}</span>
                 </button>
               ))}
             </div>
+            {platform === 'High-Res' && (
+              <p className="text-[7.5px] text-amber-300/80 leading-tight">
+                * Note: High-Res Aerial provides sub-meter reference imagery. For dual-date historical change detection and vegetation loss, use <b>S2 Optical (10m)</b> or <b>Landsat</b>.
+              </p>
+            )}
           </div>
 
           {/* Date Comparison Pickers */}

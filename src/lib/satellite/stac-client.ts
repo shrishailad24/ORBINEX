@@ -122,7 +122,7 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
   if (!query.platform || query.platform === 'all' || query.platform === 'Sentinel-1') {
     collections.push('sentinel-1-grd');
   }
-  if (query.platform === 'Landsat-8' || query.platform === 'Landsat-9') {
+  if (query.platform === 'Landsat-8' || query.platform === 'Landsat-9' || query.platform === 'Landsat') {
     collections.push('landsat-c2-l2');
   }
 

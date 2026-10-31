@@ -76,16 +76,18 @@ def analyze_changes(before_img, after_img, total_area_km2=100.0):
     d_bri = a_bri - b_bri
     
     # Significant change thresholds
-    veg_loss_mask = valid_mask & (d_veg < -0.12) & (d_wat >= -0.2)
-    veg_gain_mask = valid_mask & (d_veg > 0.12)
-    water_gain_mask = valid_mask & (d_wat > 0.15) & (a_bri < 130)
-    water_loss_mask = valid_mask & (d_wat < -0.15) & (b_bri < 130)
-    urban_expansion_mask = valid_mask & (d_bri > 25) & (d_veg < 0.05) & (a_bri > 120)
+    # Deforestation / Vegetation Loss: Green drops, or canopy clears exposing bright ground/soil
+    veg_loss_mask = valid_mask & ((d_veg < -0.06) | ((d_veg < -0.03) & (d_bri > 12)))
+    veg_gain_mask = valid_mask & (d_veg > 0.07)
+    water_gain_mask = valid_mask & (d_wat > 0.12) & (a_bri < 130)
+    water_loss_mask = valid_mask & (d_wat < -0.12) & (b_bri < 130)
+    # Soil exposure / Mining / Disturbance / Built-up expansion:
+    urban_expansion_mask = valid_mask & ((d_bri > 18) | (np.abs(d_bri) > 28)) & ~veg_loss_mask
 
     # Calculate pixel counts and percentages
     veg_loss_count = int(np.sum(veg_loss_mask))
     veg_gain_count = int(np.sum(veg_gain_mask))
-    water_gain_count = int(np.sum(water_gain_count := water_gain_mask))
+    water_gain_count = int(np.sum(water_gain_mask))
     water_loss_count = int(np.sum(water_loss_mask))
     urban_count = int(np.sum(urban_expansion_mask))
 

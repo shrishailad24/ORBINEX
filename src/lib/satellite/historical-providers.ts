@@ -94,7 +94,7 @@ export async function buildHistoricalComparison(
   lng: number,
   beforeDate: string,
   afterDate: string,
-  platform: 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS' = 'Sentinel-2',
+  platform: 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS' = 'Sentinel-2',
   radiusKm: number = 10,
   bbox?: [number, number, number, number]
 ): Promise<HistoricalComparisonPair> {

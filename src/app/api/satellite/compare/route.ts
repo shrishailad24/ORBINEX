@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const lng = parseFloat(searchParams.get('lng') || '');
     const beforeDate = searchParams.get('before') || '2020-01-15';
     const afterDate = searchParams.get('after') || '2024-01-15';
-    const platform = (searchParams.get('platform') as 'Sentinel-2' | 'Sentinel-1' | 'NASA-GIBS') || 'Sentinel-2';
+    const platform = (searchParams.get('platform') as 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS') || 'Sentinel-2';
     const radiusKm = parseFloat(searchParams.get('radiusKm') || '10');
     const bboxParam = searchParams.get('bbox');
     const bbox = bboxParam ? (bboxParam.split(',').map(Number) as [number, number, number, number]) : undefined;

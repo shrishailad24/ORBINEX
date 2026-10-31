@@ -2,10 +2,72 @@ import { NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import os from 'os';
 import crypto from 'crypto';
+import { processSatelliteAsset } from '@/lib/satellite/image-processor';
+import { validateBbox } from '@/lib/satellite/security';
+import type { SatellitePlatform } from '@/lib/satellite/types';
 
 export const maxDuration = 30;
+
+async function resolveAssetToFile(inputUrl: string): Promise<string> {
+  // If it's a relative or localhost /api/satellite/process URL
+  if (inputUrl.includes('/api/satellite/process')) {
+    const queryStr = inputUrl.split('?')[1] || '';
+    const params = new URLSearchParams(queryStr);
+    const rawUrl = params.get('url');
+    if (!rawUrl) throw new Error('Missing url parameter in process query');
+
+    const sceneBboxParam = params.get('sceneBbox');
+    const aoiBboxParam = params.get('aoiBbox');
+    const stretch = params.get('stretch') !== 'false';
+    const platform = (params.get('platform') as SatellitePlatform) || 'Sentinel-2';
+    const width = parseInt(params.get('width') || '768', 10);
+
+    let sceneBbox: [number, number, number, number] | null = null;
+    let aoiBbox: [number, number, number, number] | null = null;
+    if (sceneBboxParam) {
+      sceneBbox = validateBbox(sceneBboxParam.split(',').map(Number));
+    }
+    if (aoiBboxParam) {
+      aoiBbox = validateBbox(aoiBboxParam.split(',').map(Number));
+    }
+
+    // Process asset to cache
+    await processSatelliteAsset({
+      inputUrl: rawUrl,
+      sceneBbox,
+      aoiBbox,
+      stretch,
+      platform,
+      targetWidth: width,
+    });
+
+    const cacheDir = path.resolve(process.cwd(), '.cache', 'satellite-processed');
+    const payload = JSON.stringify({
+      url: rawUrl,
+      sBbox: sceneBbox,
+      aBbox: aoiBbox,
+      stretch: Boolean(stretch),
+      platform: platform || 'Sentinel-2',
+      w: width || 768,
+    });
+    const key = crypto.createHash('sha256').update(payload).digest('hex');
+    const cachedFile = path.join(cacheDir, `${key}.png`);
+    if (fsSync.existsSync(cachedFile)) {
+      return cachedFile;
+    }
+  }
+
+  if (inputUrl.startsWith('/') && inputUrl.includes('url=')) {
+    // e.g. /api/satellite/asset?url=...
+    const raw = decodeURIComponent(inputUrl.split('url=')[1]);
+    return raw;
+  }
+
+  return inputUrl;
+}
 
 export async function POST(request: Request) {
   try {
@@ -57,18 +119,14 @@ export async function POST(request: Request) {
       // Run analysis
     }
 
-    // Convert relative URLs if pointing to localhost
-    const resolveUrl = (u: string) => {
-      if (u.startsWith('/')) {
-        return `http://127.0.0.1:3000${u}`;
-      }
-      return u;
-    };
+    // Resolve URLs directly to local disk paths to bypass Windows socket loopback restriction
+    const resolvedBefore = await resolveAssetToFile(beforeUrl);
+    const resolvedAfter = await resolveAssetToFile(afterUrl);
 
     const pyArgs = [
       scriptPath,
-      '--before', resolveUrl(beforeUrl),
-      '--after', resolveUrl(afterUrl),
+      '--before', resolvedBefore,
+      '--after', resolvedAfter,
       '--output-json', outputJson,
       '--output-heatmap', outputHeatmap,
       '--area-km2', String(areaKm2),
