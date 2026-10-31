@@ -1076,6 +1076,59 @@ export default function Dashboard() {
     }
   }, []);
 
+  const handleSatellitePickPoint = useCallback((coords: { lat: number; lng: number }) => {
+    setIsPickingSatellitePoint(false);
+    const radiusKm = 5.0;
+    const deltaLat = radiusKm / 111.32;
+    const cosLat = Math.cos((coords.lat * Math.PI) / 180);
+    const deltaLng = radiusKm / (111.32 * Math.max(0.01, cosLat));
+    const minLng = Number((coords.lng - deltaLng).toFixed(6));
+    const maxLng = Number((coords.lng + deltaLng).toFixed(6));
+    const minLat = Number((coords.lat - deltaLat).toFixed(6));
+    const maxLat = Number((coords.lat + deltaLat).toFixed(6));
+    const areaKm2 = Number(((2 * radiusKm) * (2 * radiusKm)).toFixed(2));
+    const ringCoords = [
+      [minLng, minLat],
+      [maxLng, minLat],
+      [maxLng, maxLat],
+      [minLng, maxLat],
+      [minLng, minLat],
+    ];
+    const newAoi = {
+      id: `aoi-buffer-${coords.lat.toFixed(4)}-${coords.lng.toFixed(4)}`,
+      name: `Target AOI [${coords.lat.toFixed(3)}°, ${coords.lng.toFixed(3)}°] (${areaKm2} km²)`,
+      kind: 'rectangle',
+      coords: ringCoords,
+      bbox: [minLng, minLat, maxLng, maxLat] as [number, number, number, number],
+      center: [coords.lat, coords.lng] as [number, number],
+      areaKm2,
+      radiusKm,
+    };
+    setSatelliteDrawnAOI(newAoi);
+    const shape: DrawnShape = {
+      id: newAoi.id,
+      name: newAoi.name,
+      kind: 'rectangle',
+      geojson: {
+        type: 'Feature',
+        properties: { name: newAoi.name, areaKm2: newAoi.areaKm2 },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [ringCoords],
+        },
+      },
+      areaKm2: newAoi.areaKm2,
+      perimeterKm: 8 * radiusKm,
+      color: '#00E5FF',
+      visible: true,
+    };
+    setDrawnPolygons((prev) => [
+      shape,
+      ...prev.filter((p) => !p.id.startsWith('aoi-buffer-') && !p.id.startsWith('aoi-drawn-')),
+    ]);
+    setShowSatelliteCompare(true);
+  }, []);
+
   const handleExportGeoJSON = useCallback(() => {
     downloadFile(
       `orbinex-aoi-${new Date().toISOString().slice(0, 10)}.geojson`,
@@ -1652,6 +1705,8 @@ export default function Dashboard() {
           drawCommand={drawCommand}
           onDrawCancel={() => { setDrawMode(null); setDrawProgress(null); }}
           onDrawComplete={handleDrawComplete}
+          isPickingPoint={isPickingSatellitePoint}
+          onPickPoint={handleSatellitePickPoint}
           drawnPolygons={drawnPolygons}
           aircraftAirports={aircraftAirports}
           onOiGlobe={handleOiGlobe}
@@ -2455,7 +2510,7 @@ export default function Dashboard() {
               [minLng, minLat], // bottom-left
             ];
             setActiveSatelliteImagery({
-              id: scene?.id ?? 'footprint-layer',
+              id: `${scene?.id ?? 'footprint'}-${Date.now()}`,
               type: 'image',
               url: processedImageUrl,
               coordinates,
@@ -2465,7 +2520,7 @@ export default function Dashboard() {
           } else if (scene?.thumbnailUrl && scene?.coordinates) {
             // Full raw scene uncropped: MUST use full scene.coordinates so it aligns geographically without distortion!
             setActiveSatelliteImagery({
-              id: scene.id,
+              id: `${scene.id}-${Date.now()}`,
               type: 'image',
               url: `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`,
               coordinates: scene.coordinates,

@@ -144,11 +144,15 @@ export default function SatelliteComparePanel({
     const deltaLat = surroundingRadiusKm / 111.32;
     const cosLat = Math.cos((activeLocation.lat * Math.PI) / 180);
     const deltaLng = surroundingRadiusKm / (111.32 * Math.max(0.01, cosLat));
+    const lng1 = Number((activeLocation.lng - deltaLng).toFixed(6));
+    const lat1 = Number((activeLocation.lat - deltaLat).toFixed(6));
+    const lng2 = Number((activeLocation.lng + deltaLng).toFixed(6));
+    const lat2 = Number((activeLocation.lat + deltaLat).toFixed(6));
     return [
-      Number((activeLocation.lng - deltaLng).toFixed(6)),
-      Number((activeLocation.lat - deltaLat).toFixed(6)),
-      Number((activeLocation.lng + deltaLng).toFixed(6)),
-      Number((activeLocation.lat + deltaLat).toFixed(6)),
+      Math.min(lng1, lng2),
+      Math.min(lat1, lat2),
+      Math.max(lng1, lng2),
+      Math.max(lat1, lat2),
     ];
   }, [activeLocation.lat, activeLocation.lng, surroundingRadiusKm]);
 
@@ -156,10 +160,14 @@ export default function SatelliteComparePanel({
     const deltaLat = radiusKm / 111.32;
     const cosLat = Math.cos((lat * Math.PI) / 180);
     const deltaLng = radiusKm / (111.32 * Math.max(0.01, cosLat));
-    const minLng = Number((lng - deltaLng).toFixed(6));
-    const maxLng = Number((lng + deltaLng).toFixed(6));
-    const minLat = Number((lat - deltaLat).toFixed(6));
-    const maxLat = Number((lat + deltaLat).toFixed(6));
+    const lng1 = Number((lng - deltaLng).toFixed(6));
+    const lat1 = Number((lat - deltaLat).toFixed(6));
+    const lng2 = Number((lng + deltaLng).toFixed(6));
+    const lat2 = Number((lat + deltaLat).toFixed(6));
+    const minLng = Math.min(lng1, lng2);
+    const maxLng = Math.max(lng1, lng2);
+    const minLat = Math.min(lat1, lat2);
+    const maxLat = Math.max(lat1, lat2);
     const areaKm2 = Number(((2 * radiusKm) * (2 * radiusKm)).toFixed(2));
     const bbox: [number, number, number, number] = [minLng, minLat, maxLng, maxLat];
     const coords = [
@@ -320,8 +328,8 @@ export default function SatelliteComparePanel({
       const activeAoi = drawnAOI ? {
         name: drawnAOI.name,
         region: 'Custom Drawn AOI',
-        lat: drawnAOI.center[1],
-        lng: drawnAOI.center[0],
+        lat: drawnAOI.center[0],
+        lng: drawnAOI.center[1],
         bbox: drawnAOI.bbox,
         areaKm2: drawnAOI.areaKm2,
       } : {
@@ -1242,12 +1250,20 @@ export default function SatelliteComparePanel({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.currentTarget;
+                          const directUrl = comparison.before.matchedScene?.thumbnailUrl
+                            ? `/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`
+                            : '';
+                          if (directUrl && target.src !== directUrl && !target.dataset.retried) {
+                            target.dataset.retried = 'true';
+                            target.src = directUrl;
+                            return;
+                          }
                           target.style.display = 'none';
                           const parent = target.parentElement;
                           if (parent) {
                             const fallback = document.createElement('div');
                             fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'JPEG-2000 transcode pending. Click "Process AOI".';
+                            fallback.innerText = 'Observation pending. Click "Process".';
                             parent.appendChild(fallback);
                           }
                         }}
@@ -1325,12 +1341,20 @@ export default function SatelliteComparePanel({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.currentTarget;
+                          const directUrl = comparison.after.matchedScene?.thumbnailUrl
+                            ? `/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`
+                            : '';
+                          if (directUrl && target.src !== directUrl && !target.dataset.retried) {
+                            target.dataset.retried = 'true';
+                            target.src = directUrl;
+                            return;
+                          }
                           target.style.display = 'none';
                           const parent = target.parentElement;
                           if (parent) {
                             const fallback = document.createElement('div');
                             fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'Transcode pending. Click "Process".';
+                            fallback.innerText = 'Observation pending. Click "Process".';
                             parent.appendChild(fallback);
                           }
                         }}

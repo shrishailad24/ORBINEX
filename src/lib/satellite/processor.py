@@ -121,7 +121,20 @@ def main():
     parser.add_argument("--platform", default="Sentinel-2", help="Satellite platform (Sentinel-2, Sentinel-1, etc.)")
     parser.add_argument("--width", type=int, default=768, help="Target output max dimension")
     
-    args = parser.parse_args()
+    # Normalize arguments so negative coordinates (e.g. -50.123) are not parsed as optional flags by argparse
+    normalized_argv = []
+    raw_argv = sys.argv[1:]
+    i = 0
+    while i < len(raw_argv):
+        arg = raw_argv[i]
+        if arg in ('--scene-bbox', '--aoi-bbox') and i + 1 < len(raw_argv) and not raw_argv[i+1].startswith('--'):
+            normalized_argv.append(f"{arg}={raw_argv[i+1]}")
+            i += 2
+        else:
+            normalized_argv.append(arg)
+            i += 1
+            
+    args = parser.parse_args(normalized_argv)
     
     temp_download = None
     try:

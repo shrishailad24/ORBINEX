@@ -115,10 +115,10 @@ export async function processSatelliteAsset(
   ];
 
   if (validSceneBbox) {
-    args.push('--scene-bbox', validSceneBbox.join(','));
+    args.push(`--scene-bbox=${validSceneBbox.join(',')}`);
   }
   if (validAoiBbox) {
-    args.push('--aoi-bbox', validAoiBbox.join(','));
+    args.push(`--aoi-bbox=${validAoiBbox.join(',')}`);
   }
   if (opts.stretch !== false) {
     args.push('--stretch');

@@ -35,7 +35,13 @@ export function isAllowedSatelliteUrl(rawUrl: string): boolean {
       hostname.endsWith('.s3.us-west-2.amazonaws.com') ||
       hostname.endsWith('.s3.amazonaws.com') ||
       hostname.endsWith('.earthdata.nasa.gov') ||
-      hostname.endsWith('.copernicus.eu')
+      hostname.endsWith('.copernicus.eu') ||
+      (hostname.endsWith('.amazonaws.com') && (
+        hostname.includes('sentinel') ||
+        hostname.includes('landsat') ||
+        hostname.includes('earth-search') ||
+        hostname.includes('copernicus')
+      ))
     ) {
       return true;
     }
