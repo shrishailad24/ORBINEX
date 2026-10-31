@@ -235,12 +235,12 @@ function StartMark({ size = 12 }: { size?: number }) {
 
 /** The destination: a gold pin, as on the rail. */
 function EndMark({ className = 'w-4 h-4' }: { className?: string }) {
-  return <MapPin className={`${className} flex-shrink-0`} style={{ color: 'var(--gold-primary)', fill: 'rgba(var(--gold-rgb),0.28)' }} />;
+  return <MapPin className={`${className} flex-shrink-0`} style={{ color: '#00E5FF', fill: 'rgba(0, 229, 255,0.28)' }} />;
 }
 
 /** A stop on the way: a small gold diamond. */
 function StopMark() {
-  return <span className="w-2 h-2 rotate-45 flex-shrink-0" style={{ background: 'var(--gold-light)', opacity: 0.8 }} />;
+  return <span className="w-2 h-2 rotate-45 flex-shrink-0" style={{ background: '#00E5FF', opacity: 0.8 }} />;
 }
 
 const MANEUVER: Array<[(t: string) => boolean, LucideIcon]> = [
@@ -254,7 +254,7 @@ const MANEUVER: Array<[(t: string) => boolean, LucideIcon]> = [
 function StepIcon({ type, on = false }: { type: string; on?: boolean }) {
   const tile = (child: ReactNode) => (
     <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 border transition-colors"
-      style={{ borderColor: on ? 'rgba(var(--gold-rgb),0.45)' : 'rgba(255,255,255,0.07)', background: on ? 'rgba(var(--gold-rgb),0.12)' : 'rgba(255,255,255,0.03)' }}>
+      style={{ borderColor: on ? 'rgba(0, 229, 255,0.45)' : 'rgba(255,255,255,0.07)', background: on ? 'rgba(0, 229, 255,0.12)' : 'rgba(255,255,255,0.03)' }}>
       {child}
     </span>
   );
@@ -262,7 +262,7 @@ function StepIcon({ type, on = false }: { type: string; on?: boolean }) {
   if (type === 'arrive') return tile(<EndMark className="w-3.5 h-3.5" />);
   const Icon = MANEUVER.find(([test]) => test(type))?.[1] ?? ArrowUp;
   const turn = Icon !== ArrowUp;
-  return tile(<Icon className="w-3.5 h-3.5" style={{ color: on ? 'var(--gold-light)' : turn ? 'var(--text-heading)' : 'var(--text-muted)' }} />);
+  return tile(<Icon className="w-3.5 h-3.5" style={{ color: on ? '#00E5FF' : turn ? 'var(--text-heading)' : 'var(--text-muted)' }} />);
 }
 
 /** One place on the rail: its mark, and the dotted line down to the next. */
@@ -378,7 +378,7 @@ function PlaceInput({
 
   return (
     <div className="relative flex-1 min-w-0" ref={box}>
-      <div className="flex items-center h-10 rounded-lg border bg-black/45 transition-[border-color,box-shadow] border-white/[0.07] hover:border-white/[0.13] focus-within:!border-[rgba(var(--gold-rgb),0.5)] focus-within:shadow-[0_0_0_3px_rgba(var(--gold-rgb),0.08)]">
+      <div className="flex items-center h-10 rounded-lg border bg-black/45 transition-[border-color,box-shadow] border-white/[0.07] hover:border-white/[0.13] focus-within:!border-[rgba(0, 229, 255,0.5)] focus-within:shadow-[0_0_0_3px_rgba(0, 229, 255,0.08)]">
         <input
           value={value}
           autoFocus={autoFocus}
@@ -400,7 +400,7 @@ function PlaceInput({
           autoComplete="off"
           spellCheck={false}
         />
-        {loading && <Loader2 className="w-3.5 h-3.5 mx-1 flex-shrink-0 animate-spin text-[var(--gold-primary)]" />}
+        {loading && <Loader2 className="w-3.5 h-3.5 mx-1 flex-shrink-0 animate-spin text-[#00E5FF]" />}
         {value && onClear && (
           <button type="button" onClick={() => { onClear(); setResults([]); }} aria-label={`Clear ${placeholder.toLowerCase()}`}
             className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--text-heading)] hover:bg-white/[0.06] transition-colors">
@@ -409,8 +409,8 @@ function PlaceInput({
         )}
         {onLocate && (
           <button type="button" onClick={onLocate} disabled={locating} title="Use my location" aria-label="Use my location"
-            className="w-8 h-8 mr-0.5 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--gold-light)] hover:bg-[rgba(var(--gold-rgb),0.08)] transition-colors disabled:opacity-60">
-            <LocateFixed className={`w-4 h-4 ${locating ? 'animate-pulse text-[var(--gold-light)]' : ''}`} />
+            className="w-8 h-8 mr-0.5 rounded-md flex items-center justify-center flex-shrink-0 text-[var(--text-muted)] hover:text-[#00E5FF] hover:bg-[rgba(0, 229, 255,0.08)] transition-colors disabled:opacity-60">
+            <LocateFixed className={`w-4 h-4 ${locating ? 'animate-pulse text-[#00E5FF]' : ''}`} />
           </button>
         )}
         {trailing}
@@ -419,7 +419,7 @@ function PlaceInput({
       {open && options.length > 0 && (
         <div role="listbox" aria-label={empty ? 'Suggestions' : 'Places found'}
           className="absolute top-full -left-[26px] -right-[42px] mt-1.5 z-[10000] rounded-xl border border-[var(--border-primary)] p-1.5 max-h-[280px] overflow-y-auto styled-scrollbar"
-          style={{ background: 'var(--oi-solid)', boxShadow: '0 18px 44px rgba(0,0,0,0.75)' }}>
+          style={{ background: '#070D18', boxShadow: '0 18px 44px rgba(0,0,0,0.75)' }}>
           {empty && recent.length > 0 && <span className="block px-3 pt-1 pb-1 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Recent</span>}
           {options.map((r, i) => (
             <PlaceRow key={`${r.kind}-${r.label}-${r.lat}-${i}`} place={r} query={empty ? '' : value} on={i === at}
@@ -437,7 +437,7 @@ function PlaceInput({
 function IconBtn({ children, label, onClick, on, className = '' }: { children: ReactNode; label: string; onClick: () => void; /** A toggle's state; leave out for a plain button. */ on?: boolean; className?: string }) {
   return (
     <button type="button" onClick={onClick} title={label} aria-label={label} aria-pressed={on}
-      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${on ? 'text-[var(--gold-light)] bg-[rgba(var(--gold-rgb),0.12)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.06]'} ${className}`}>
+      className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${on ? 'text-[#00E5FF] bg-[rgba(0, 229, 255,0.12)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.06]'} ${className}`}>
       {children}
     </button>
   );
@@ -684,19 +684,19 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
   const bias = { biasLat: center?.lat, biasLng: center?.lng };
 
   return (
-    <div className="glass-panel tool-glass relative overflow-hidden flex flex-col max-h-[min(80vh,720px)]">
-      <span aria-hidden className="absolute inset-x-0 top-0 h-px z-20" style={{ background: 'linear-gradient(90deg, transparent, rgba(var(--gold-rgb),0.7) 30%, rgba(var(--gold-rgb),0.7) 70%, transparent)' }} />
+    <div className="relative overflow-hidden flex flex-col max-h-[min(80vh,720px)] rounded-xl bg-[#070D18]/95 backdrop-blur-xl border border-[#00E5FF]/30 shadow-[0_0_50px_rgba(0,0,0,0.8),0_0_20px_rgba(0,229,255,0.15)] font-mono">
+      <span aria-hidden className="absolute inset-x-0 top-0 h-px z-20" style={{ background: 'linear-gradient(90deg, transparent, rgba(0, 229, 255,0.7) 30%, rgba(0, 229, 255,0.7) 70%, transparent)' }} />
 
       {/* ── header ── */}
       <header className="flex items-center gap-2.5 h-12 pl-4 pr-2 flex-shrink-0 border-b border-[var(--border-secondary)] bg-black/30">
-        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(var(--gold-rgb),0.12)' }}>
-          <Route className="w-4 h-4 text-[var(--gold-primary)]" />
+        <span className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0, 229, 255,0.12)' }}>
+          <Route className="w-4 h-4 text-[#00E5FF]" />
         </span>
-        <h2 className="flex-1 text-[14px] font-semibold text-[var(--text-heading)]">Directions</h2>
+        <h2 className="flex-1 text-xs font-bold text-white tracking-wider uppercase">DIRECTIONS & ROUTING</h2>
         {tracking && (
-          <span className="flex items-center gap-1.5 h-6 px-2 rounded-full text-[9.5px] font-mono tracking-[0.12em] uppercase text-[var(--gold-light)]"
-            style={{ background: 'rgba(var(--gold-rgb),0.1)', boxShadow: 'inset 0 0 0 1px rgba(var(--gold-rgb),0.3)' }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold-light)] animate-osiris-pulse" /> Live
+          <span className="flex items-center gap-1.5 h-6 px-2 rounded-full text-[9.5px] font-mono tracking-[0.12em] uppercase text-[#00E5FF]"
+            style={{ background: 'rgba(0, 229, 255,0.1)', boxShadow: 'inset 0 0 0 1px rgba(0, 229, 255,0.3)' }}>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] animate-osiris-pulse" /> Live
           </span>
         )}
         <IconBtn label={tracking ? 'Stop live tracking' : 'Track my location live'} onClick={toggleTracking} on={tracking}>
@@ -745,18 +745,18 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
           </RailRow>
         </div>
         <button onClick={swap} aria-label="Swap start and destination" title="Swap start and destination"
-          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border border-[var(--border-secondary)] bg-black/40 text-[var(--text-secondary)] hover:text-[var(--gold-light)] hover:border-[var(--border-active)] transition-colors">
+          className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border border-[var(--border-secondary)] bg-black/40 text-[var(--text-secondary)] hover:text-[#00E5FF] hover:border-[var(--border-active)] transition-colors">
           <ArrowUpDown className="w-3.5 h-3.5" />
         </button>
       </div>
 
       <div className="px-3 pb-2.5 flex items-center gap-1 flex-shrink-0">
         <button onClick={() => setVias((v) => [...v, { place: null, text: '' }])}
-          className="h-7 pl-1.5 pr-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] hover:text-[var(--gold-light)] hover:bg-white/[0.04] transition-colors">
+          className="h-7 pl-1.5 pr-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] hover:text-[#00E5FF] hover:bg-white/[0.04] transition-colors">
           <Plus className="w-3.5 h-3.5" /> Add stop
         </button>
         <button onClick={() => setShowOptions((o) => !o)} aria-expanded={showOptions}
-          className={`ml-auto h-7 px-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] transition-colors ${showOptions || avoiding ? 'text-[var(--gold-light)] bg-[rgba(var(--gold-rgb),0.08)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.04]'}`}>
+          className={`ml-auto h-7 px-2.5 rounded-md flex items-center gap-1.5 text-[11.5px] transition-colors ${showOptions || avoiding ? 'text-[#00E5FF] bg-[rgba(0, 229, 255,0.08)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)] hover:bg-white/[0.04]'}`}>
           <SlidersHorizontal className="w-3.5 h-3.5" /> Options{avoiding ? ` · ${avoiding}` : ''}
         </button>
       </div>
@@ -768,8 +768,8 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             const on = mode === id;
             return (
               <button key={id} role="tab" aria-selected={on} onClick={() => pickMode(id)}
-                className={`relative flex-1 h-8 flex items-center justify-center gap-1.5 rounded-md text-[10.5px] font-mono tracking-[0.12em] uppercase transition-colors ${on ? 'text-[var(--gold-light)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}
-                style={on ? { background: 'rgba(var(--gold-rgb),0.12)', boxShadow: 'inset 0 0 0 1px rgba(var(--gold-rgb),0.32)' } : undefined}>
+                className={`relative flex-1 h-8 flex items-center justify-center gap-1.5 rounded-md text-[10.5px] font-mono tracking-[0.12em] uppercase transition-colors ${on ? 'text-[#00E5FF]' : 'text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}
+                style={on ? { background: 'rgba(0, 229, 255,0.12)', boxShadow: 'inset 0 0 0 1px rgba(0, 229, 255,0.32)' } : undefined}>
                 <Icon className="w-3.5 h-3.5" />
                 {label}
               </button>
@@ -781,7 +781,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
             <span className="text-[10px] font-mono tracking-[0.12em] uppercase text-[var(--text-muted)] mr-0.5">Avoid</span>
             {([['tolls', 'Tolls'], ['highways', 'Motorways'], ['ferries', 'Ferries']] as const).map(([k, word]) => (
               <button key={k} onClick={() => toggleAvoid(k)} aria-pressed={avoid[k]}
-                className={`flex-1 h-7 rounded-full border text-[11px] transition-colors ${avoid[k] ? 'border-[var(--border-active)] bg-[rgba(var(--gold-rgb),0.12)] text-[var(--gold-light)]' : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}>
+                className={`flex-1 h-7 rounded-full border text-[11px] transition-colors ${avoid[k] ? 'border-[var(--border-active)] bg-[rgba(0, 229, 255,0.12)] text-[#00E5FF]' : 'border-[var(--border-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-heading)]'}`}>
                 {word}
               </button>
             ))}
@@ -825,9 +825,9 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
               <>
                 {!from && (
                   <button onClick={useMyLocation} disabled={locating}
-                    className="group flex items-center gap-3 w-full rounded-lg border border-[var(--border-secondary)] bg-white/[0.02] px-3 py-2.5 text-left transition-colors hover:border-[var(--border-active)] hover:bg-[rgba(var(--gold-rgb),0.05)] disabled:opacity-70">
-                    <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(var(--gold-rgb),0.12)' }}>
-                      {locating ? <Loader2 className="w-4 h-4 animate-spin text-[var(--gold-light)]" /> : <LocateFixed className="w-4 h-4 text-[var(--gold-light)]" />}
+                    className="group flex items-center gap-3 w-full rounded-lg border border-[var(--border-secondary)] bg-white/[0.02] px-3 py-2.5 text-left transition-colors hover:border-[var(--border-active)] hover:bg-[rgba(0, 229, 255,0.05)] disabled:opacity-70">
+                    <span className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0, 229, 255,0.12)' }}>
+                      {locating ? <Loader2 className="w-4 h-4 animate-spin text-[#00E5FF]" /> : <LocateFixed className="w-4 h-4 text-[#00E5FF]" />}
                     </span>
                     <span className="flex-1 min-w-0">
                       <span className="block text-[13px] text-[var(--text-heading)]">Start from my location</span>
@@ -835,7 +835,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                     </span>
                   </button>
                 )}
-                {locateError && <p className="px-1 text-[11px] text-[var(--gold-light)]">{locateError}</p>}
+                {locateError && <p className="px-1 text-[11px] text-[#00E5FF]">{locateError}</p>}
                 {recent.length > 0 && (
                   <div>
                     <span className="block px-1 pb-1 text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--text-muted)]">Recent places</span>
@@ -860,28 +860,28 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
         {!loading && route && (
           <>
             {guidance && (
-              <div className="mx-3 mt-3 rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(var(--gold-rgb),0.3)', background: 'rgba(var(--gold-rgb),0.06)' }}>
+              <div className="mx-3 mt-3 rounded-lg border px-3 py-2.5" style={{ borderColor: 'rgba(0, 229, 255,0.3)', background: 'rgba(0, 229, 255,0.06)' }}>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Navigation className="w-3 h-3 text-[var(--gold-light)]" />
-                  <span className="text-[9.5px] font-mono tracking-[0.14em] uppercase text-[var(--gold-light)]">Next</span>
+                  <Navigation className="w-3 h-3 text-[#00E5FF]" />
+                  <span className="text-[9.5px] font-mono tracking-[0.14em] uppercase text-[#00E5FF]">Next</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <StepIcon type={guidance.step.type} on />
                   <span className="flex-1 min-w-0 text-[13px] text-[var(--text-heading)] leading-snug">{guidance.step.instruction}</span>
-                  <span className="text-[15px] font-mono text-[var(--gold-light)] tabular-nums flex-shrink-0">{formatDistance(guidance.distance)}</span>
+                  <span className="text-[15px] font-mono text-[#00E5FF] tabular-nums flex-shrink-0">{formatDistance(guidance.distance)}</span>
                 </div>
               </div>
             )}
 
             {/* summary — sticky so time, distance and arrival stay in view while the steps scroll under it */}
-            <div className="sticky top-0 z-10 px-4 pt-3.5 pb-3 border-b border-[var(--border-secondary)]" style={{ background: 'var(--oi-solid)' }}>
+            <div className="sticky top-0 z-10 px-4 pt-3.5 pb-3 border-b border-[var(--border-secondary)]" style={{ background: '#070D18' }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-[26px] leading-none font-mono font-light tabular-nums text-[var(--text-heading)]" style={{ textShadow: '0 0 20px rgba(var(--gold-rgb),0.2)' }}>
+                    <span className="text-[26px] leading-none font-mono font-light tabular-nums text-[var(--text-heading)]" style={{ textShadow: '0 0 20px rgba(0, 229, 255,0.2)' }}>
                       {formatDuration(route.duration)}
                     </span>
-                    {chosen === 0 && routes.length > 1 && <span className="text-[9.5px] font-mono tracking-[0.12em] uppercase text-[var(--gold-light)]">Fastest</span>}
+                    {chosen === 0 && routes.length > 1 && <span className="text-[9.5px] font-mono tracking-[0.12em] uppercase text-[#00E5FF]">Fastest</span>}
                   </div>
                   <div className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-[var(--text-secondary)] tabular-nums">
                     <span>{formatDistance(route.distance)}</span>
@@ -893,7 +893,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                 </div>
                 {(route.hasToll || route.hasHighway || route.hasFerry) && (
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                    {route.hasToll && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[rgba(var(--gold-rgb),0.35)] text-[var(--gold-light)]">Toll</span>}
+                    {route.hasToll && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[rgba(0, 229, 255,0.35)] text-[#00E5FF]">Toll</span>}
                     {route.hasHighway && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[var(--border-secondary)] text-[var(--text-secondary)]">Motorway</span>}
                     {route.hasFerry && <span className="h-5 px-1.5 rounded flex items-center text-[9px] font-mono tracking-[0.1em] uppercase border border-[var(--border-secondary)] text-[var(--text-secondary)]">Ferry</span>}
                   </div>
@@ -904,7 +904,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                 <button onClick={() => onStartNavigation(route, to?.label || 'your destination', {
                   stops: stops().map(({ lat, lng }) => ({ lat, lng })),
                   avoid: Object.entries(avoid).filter(([, on]) => on).map(([k]) => k),
-                })} className="tool-btn-primary w-full mt-3">
+                })} className="w-full mt-3 py-2.5 rounded-lg bg-gradient-to-r from-[#00E5FF] to-[#0099FF] text-black font-bold font-mono tracking-wider text-xs uppercase flex items-center justify-center gap-2 hover:brightness-110 shadow-[0_0_20px_rgba(0,229,255,0.3)] transition-all cursor-pointer">
                   <Play className="w-4 h-4" fill="currentColor" /> Start navigation
                 </button>
               )}
@@ -921,17 +921,17 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                     const road = viaRoad(r.steps);
                     return (
                       <button key={i} role="radio" aria-checked={on} onClick={() => chooseRoute(i)}
-                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${on ? 'border-[rgba(var(--gold-rgb),0.45)] bg-[rgba(var(--gold-rgb),0.08)]' : 'border-[var(--border-secondary)] hover:bg-white/[0.03] hover:border-[var(--border-primary)]'}`}>
-                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0 border" style={{ borderColor: on ? 'var(--gold-primary)' : 'var(--text-muted)' }}>
-                          {on && <span className="w-1.5 h-1.5 rounded-full bg-[var(--gold-primary)]" />}
+                        className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${on ? 'border-[rgba(0, 229, 255,0.45)] bg-[rgba(0, 229, 255,0.08)]' : 'border-[var(--border-secondary)] hover:bg-white/[0.03] hover:border-[var(--border-primary)]'}`}>
+                        <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center flex-shrink-0 border" style={{ borderColor: on ? '#00E5FF' : 'var(--text-muted)' }}>
+                          {on && <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF]" />}
                         </span>
                         <span className="flex-1 min-w-0">
-                          <span className={`block text-[12.5px] font-mono tabular-nums ${on ? 'text-[var(--gold-light)]' : 'text-[var(--text-heading)]'}`}>{formatDuration(r.duration)}</span>
+                          <span className={`block text-[12.5px] font-mono tabular-nums ${on ? 'text-[#00E5FF]' : 'text-[var(--text-heading)]'}`}>{formatDuration(r.duration)}</span>
                           <span className="block text-[11px] text-[var(--text-muted)] truncate">{road ? `via ${road}` : formatDistance(r.distance)}</span>
                         </span>
                         <span className="flex flex-col items-end flex-shrink-0 text-[10.5px] font-mono tabular-nums">
                           <span className="text-[var(--text-secondary)]">{formatDistance(r.distance)}</span>
-                          <span className={i === 0 ? 'text-[var(--gold-light)]' : 'text-[var(--text-muted)]'}>{i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : 'Same time'}</span>
+                          <span className={i === 0 ? 'text-[#00E5FF]' : 'text-[var(--text-muted)]'}>{i === 0 ? 'Fastest' : slower > 0 ? `+${slower} min` : 'Same time'}</span>
                         </span>
                       </button>
                     );
@@ -949,8 +949,8 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                   <span className="text-[10.5px] font-mono text-[var(--text-secondary)] tabular-nums">↑{route.ascent ?? 0} m · ↓{route.descent ?? 0} m</span>
                 </div>
                 <svg viewBox="0 0 300 40" className="w-full h-10" preserveAspectRatio="none" aria-hidden="true">
-                  <path d={`${elevationPath(route.elevation, 300, 38)} L300,40 L0,40 Z`} fill="rgba(var(--gold-rgb),0.12)" />
-                  <path d={elevationPath(route.elevation, 300, 38)} fill="none" stroke="var(--gold-primary)" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+                  <path d={`${elevationPath(route.elevation, 300, 38)} L300,40 L0,40 Z`} fill="rgba(0, 229, 255,0.12)" />
+                  <path d={elevationPath(route.elevation, 300, 38)} fill="none" stroke="#00E5FF" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
                 </svg>
               </div>
             )}
@@ -969,8 +969,8 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
                           onLocate?.(s.location[1], s.location[0], 17);
                           onActiveSegment?.(segmentBetween(route.geometry.coordinates, s.location, route.steps[i + 1]?.location));
                         }}
-                        className={`relative w-full text-left rounded-lg pl-3 pr-2.5 py-2 flex items-center gap-3 transition-colors ${on ? 'bg-[rgba(var(--gold-rgb),0.08)]' : 'hover:bg-white/[0.035]'}`}>
-                        {on && <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-[var(--gold-primary)]" />}
+                        className={`relative w-full text-left rounded-lg pl-3 pr-2.5 py-2 flex items-center gap-3 transition-colors ${on ? 'bg-[rgba(0, 229, 255,0.08)]' : 'hover:bg-white/[0.035]'}`}>
+                        {on && <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-[#00E5FF]" />}
                         <StepIcon type={s.type} on={on} />
                         <span className={`flex-1 min-w-0 text-[12.5px] leading-snug ${on ? 'text-[var(--text-heading)]' : 'text-[var(--text-primary)]'}`}>{s.instruction}</span>
                         {s.distance > 0 && (
@@ -985,7 +985,7 @@ export default function DirectionsBar({ onRoute, onLocate, onClose, center = nul
 
             <p className="px-4 py-2.5 flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] border-t border-[var(--border-secondary)]">
               Routing by {route.provider} ·{' '}
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--gold-light)]">© OpenStreetMap</a>
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:text-[#00E5FF]">© OpenStreetMap</a>
             </p>
           </>
         )}

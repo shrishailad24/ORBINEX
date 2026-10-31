@@ -38,7 +38,7 @@ interface LiveAlertsProps {
   onRefresh?: () => Promise<unknown> | void;
 }
 
-const ACCENT = '#FF4081';
+const ACCENT = '#00E5FF';
 
 // Built-in live feeds — verified video IDs (synced with /api/live-news)
 const BUILTIN_FEEDS = [
@@ -339,7 +339,7 @@ function NewsCard({ item, now, open, wide, onToggle, onLocate }: {
 
   return (
     <article
-      className={`rounded-lg border border-l-2 transition-colors ${wide ? 'xl:col-span-2' : ''} ${open ? 'bg-[#15151A] border-[#3A3A38]' : 'bg-[#111111]/70 border-[#26262A] hover:bg-[#17171B] hover:border-[#34343A]'}`}
+      className={`rounded-lg border border-l-2 transition-colors ${wide ? 'xl:col-span-2' : ''} ${open ? 'bg-[#0E1A2D] border-[#00E5FF]/60 shadow-[0_0_20px_rgba(0,229,255,0.15)]' : 'bg-[#0A1220]/80 border border-white/10 hover:border-[#00E5FF]/40 hover:bg-[#0E1A2D]/90 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'}`}
       style={{ borderLeftColor: color }}
     >
       <button type="button" onClick={onToggle} aria-expanded={open} className="w-full text-left px-2.5 pt-2 pb-2 outline-none focus-visible:ring-1 focus-visible:ring-white/30 rounded-lg">
@@ -538,7 +538,7 @@ function StatementCard({ speaker, items, now, open, wide, onToggle }: {
   const fresh = now - lead.ts < 15 * 60_000;
   return (
     <article
-      className={`rounded-lg border border-l-2 transition-colors ${wide ? 'xl:col-span-2' : ''} ${open ? 'bg-[#15151A] border-[#3A3A38]' : 'bg-[#111111]/70 border-[#26262A] hover:bg-[#17171B] hover:border-[#34343A]'}`}
+      className={`rounded-lg border border-l-2 transition-colors ${wide ? 'xl:col-span-2' : ''} ${open ? 'bg-[#0E1A2D] border-[#00E5FF]/60 shadow-[0_0_20px_rgba(0,229,255,0.15)]' : 'bg-[#0A1220]/80 border border-white/10 hover:border-[#00E5FF]/40 hover:bg-[#0E1A2D]/90 shadow-[0_4px_16px_rgba(0,0,0,0.4)]'}`}
       style={{ borderLeftColor: color }}
     >
       <button type="button" onClick={onToggle} aria-expanded={open} className="w-full text-left px-2.5 pt-2 pb-1.5 outline-none focus-visible:ring-1 focus-visible:ring-white/30 rounded-lg">
@@ -583,7 +583,7 @@ function StatementCard({ speaker, items, now, open, wide, onToggle }: {
 function QuakeCard({ item, now, onLocate }: { item: QuakeAlert; now: number; onLocate: (lat: number, lng: number) => void }) {
   const color = quakeColor(item.magnitude);
   return (
-    <article className="rounded-lg border border-[#26262A] border-l-2 bg-[#111111]/70 hover:bg-[#17171B] transition-colors" style={{ borderLeftColor: color }}>
+    <article className="rounded-lg border border-white/10 border-l-2 bg-[#0A1220]/80 hover:bg-[#0E1A2D]/90 border-white/10 hover:border-[#00E5FF]/40 shadow-[0_4px_16px_rgba(0,0,0,0.4)] transition-colors" style={{ borderLeftColor: color }}>
       <div className="flex items-center gap-2.5 px-2.5 py-2">
         <button
           type="button"
@@ -638,7 +638,7 @@ function WarningCard({ item, now, onLocate }: { item: WarningAlert; now: number;
   const color = SEVERITY_COLORS[item.severity];
   const left = item.expires != null ? expiryLabel(item.expires, now) : null;
   return (
-    <article className="rounded-lg border border-[#26262A] border-l-2 bg-[#111111]/70 hover:bg-[#17171B] transition-colors" style={{ borderLeftColor: color }}>
+    <article className="rounded-lg border border-white/10 border-l-2 bg-[#0A1220]/80 hover:bg-[#0E1A2D]/90 border-white/10 hover:border-[#00E5FF]/40 shadow-[0_4px_16px_rgba(0,0,0,0.4)] transition-colors" style={{ borderLeftColor: color }}>
       <div className="px-2.5 py-2">
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9.5px] font-mono uppercase tracking-wider">
@@ -921,7 +921,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
               onClick={stat.onClick}
               title={stat.title}
               aria-pressed={active}
-              className={`flex-1 rounded border px-1 py-1 text-center transition-colors ${active ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}`}
+              className={`flex-1 rounded-lg border px-1 py-1.5 text-center transition-all ${active ? 'bg-white/[0.08] shadow-[0_0_10px_rgba(255,255,255,0.1)]' : 'bg-white/[0.02] hover:bg-white/[0.05]'}`}
               style={{ borderColor: quiet ? '#26262A' : `${stat.color}55` }}
             >
               <div className="text-[12px] font-mono font-bold leading-none tabular-nums" style={{ color: quiet ? '#5C5A54' : stat.color }}>{stat.value}</div>
@@ -939,7 +939,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => selectTab(t.id)}
-            className={`flex-1 rounded px-1.5 py-1 text-[10px] font-mono tracking-wider transition-all ${tab === t.id ? 'bg-[var(--cyan-primary)]/15 text-[var(--cyan-primary)] border border-[var(--cyan-primary)]/45' : 'text-[#8A8880] border border-transparent hover:text-[#E8E6E0] hover:bg-[#2A2A28]'}`}
+            className={`flex-1 rounded px-1.5 py-1 text-[10px] font-mono tracking-wider transition-all ${tab === t.id ? 'bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/50 shadow-[0_0_10px_rgba(0,229,255,0.2)] font-bold' : 'text-slate-400 border border-white/5 hover:text-white hover:bg-white/[0.04]'}`}
           >
             {t.label} <span className="opacity-60 tabular-nums">{t.count}</span>
           </button>
@@ -955,7 +955,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder={tab === 'feeds' ? 'Search feeds…' : 'Search headlines, places, channels…'}
-            className="w-full rounded border border-[#2A2A28] bg-black/30 py-1 pl-6 pr-6 text-[11px] text-[#E8E6E0] placeholder:text-[#5C5A54] outline-none focus:border-[var(--cyan-primary)]/50"
+            className="w-full rounded-lg border border-white/10 bg-black/40 py-1.5 pl-7 pr-6 text-[11px] text-white placeholder:text-slate-500 outline-none focus:border-[#00E5FF]/50 transition-colors font-sans"
           />
           {query && (
             <button onClick={() => setQuery('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#5C5A54] hover:text-white" aria-label="Clear search">
@@ -968,7 +968,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             value={bloc}
             onChange={e => setBloc(e.target.value as Bloc | 'all')}
             aria-label="Filter by perspective"
-            className="w-[108px] flex-shrink-0 rounded border border-[#2A2A28] bg-[#0c0c10] px-1 py-1 text-[10px] font-mono text-[#C9C5BC] outline-none focus:border-[var(--cyan-primary)]/50"
+            className="w-[108px] flex-shrink-0 rounded-lg border border-white/10 bg-[#070D18] px-2 py-1.5 text-[10px] font-mono text-slate-300 outline-none focus:border-[#00E5FF]/50"
             style={bloc !== 'all' ? { color: BLOCS[bloc].color, borderColor: `${BLOCS[bloc].color}66` } : undefined}
           >
             <option value="all">All sides</option>
@@ -1041,7 +1041,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
                   key={f.name}
                   type="button"
                   onClick={() => { locate(f.lat, f.lng); onWatchFeed?.(f.url, f.name); }}
-                  className="flex w-full items-center gap-2 rounded-md border border-[#26262A] bg-[#111111]/70 px-2.5 py-1.5 text-left transition-colors hover:bg-[#17171B] hover:border-[#34343A]"
+                  className="flex w-full items-center gap-2 rounded-md border border-white/10 bg-[#111111]/70 px-2.5 py-1.5 text-left transition-colors hover:bg-[#17171B] hover:border-[#34343A]"
                 >
                   <Radio className="h-3 w-3 flex-shrink-0 text-[#FF4081]" />
                   <span className="flex-1 min-w-0 truncate text-[11.5px] text-[#E8E6E0]">{f.name}</span>
@@ -1058,7 +1058,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
   ) : loading ? (
     <div className="space-y-2" aria-busy="true">
       {[0, 1, 2].map(i => (
-        <div key={i} className="h-[74px] animate-pulse rounded-lg border border-[#26262A] bg-[#111111]/60" />
+        <div key={i} className="h-[74px] animate-pulse rounded-lg border border-white/10 bg-[#111111]/60" />
       ))}
       <div className="text-center text-[10px] font-mono text-[#5C5A54]">READING CHANNELS…</div>
     </div>
@@ -1119,7 +1119,7 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
       className={`glass-panel flex flex-col overflow-hidden pointer-events-auto transition-all duration-300 ${maximized ? 'fixed inset-4 z-[9999] bg-[#0a0a09]/95 backdrop-blur-3xl' : 'shrink-0 h-[560px] max-h-[82vh] resize-y'}`}
     >
       {/* Header: title and controls, then a status line */}
-      <div className="flex-shrink-0 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(0,0,0,0.3)]">
+      <div className="flex-shrink-0 border-b border-white/10 bg-white/[0.02]">
         <div className="flex items-center justify-between gap-2 px-3 pt-2 pb-1">
           <button
             type="button"
@@ -1127,9 +1127,9 @@ export default function LiveAlerts({ data, onLocate, onWatchFeed, onRefresh, pin
             aria-expanded={expanded}
             className="flex min-w-0 items-center gap-2 outline-none"
           >
-            <Radio className="w-3.5 h-3.5 flex-shrink-0" style={{ color: ACCENT }} />
-            <span className="hud-text whitespace-nowrap text-[11px] text-[var(--text-primary)]">LIVE ALERTS</span>
-            <span className="gotham-tag gotham-tag--high" style={{ fontSize: '9px', padding: '1px 5px' }}>{news.length + quakes.length}</span>
+            <Radio className="w-3.5 h-3.5 flex-shrink-0 text-[#FF3D3D] animate-pulse" />
+            <span className="whitespace-nowrap text-xs font-bold text-white tracking-wider uppercase font-mono">LIVE ALERTS</span>
+            <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[9px] font-bold font-mono tabular-nums">{news.length + quakes.length}</span>
           </button>
           <div className="flex items-center gap-0.5 flex-shrink-0">
             {onTogglePins && (

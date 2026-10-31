@@ -46,7 +46,7 @@ export function distanceText(from: { lat: number; lng: number } | null | undefin
   return `${Math.round(m / 1000).toLocaleString('en-US')} km`;
 }
 
-/** A name with the first match of what was typed in gold. */
+/** A name with the first match of what was typed in cyber cyan. */
 export function Highlight({ text, query }: { text: string; query: string }) {
   const q = query.trim();
   const at = q ? text.toLowerCase().indexOf(q.toLowerCase()) : -1;
@@ -54,22 +54,23 @@ export function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, at)}
-      <span className="text-[var(--gold-light)]">{text.slice(at, at + q.length)}</span>
+      <span className="text-[#00E5FF] font-semibold">{text.slice(at, at + q.length)}</span>
       {text.slice(at + q.length)}
     </>
   );
 }
 
-/** The kind icon in its tile: gold when the row is the one in hand. */
+/** The kind icon in its tile: glowing cyan when the row is the one in hand. */
 export function KindTile({ kind, on = false, size = 32, icon }: { kind?: string; on?: boolean; size?: number; icon?: LucideIcon }) {
   return (
-    <span className="rounded-lg flex items-center justify-center flex-shrink-0 border transition-colors"
+    <span className="rounded-lg flex items-center justify-center flex-shrink-0 border transition-all duration-200"
       style={{
         width: size, height: size,
-        borderColor: on ? 'rgba(var(--gold-rgb),0.45)' : 'rgba(255,255,255,0.07)',
-        background: on ? 'rgba(var(--gold-rgb),0.12)' : 'rgba(255,255,255,0.03)',
+        borderColor: on ? 'rgba(0,229,255,0.6)' : 'rgba(255,255,255,0.08)',
+        background: on ? 'rgba(0,229,255,0.15)' : 'rgba(255,255,255,0.03)',
+        boxShadow: on ? '0 0 12px rgba(0,229,255,0.25)' : 'none',
       }}>
-      {createElement(icon ?? kindIcon(kind), { style: { width: size * 0.47, height: size * 0.47, color: on ? 'var(--gold-light)' : 'var(--text-secondary)' } })}
+      {createElement(icon ?? kindIcon(kind), { style: { width: size * 0.47, height: size * 0.47, color: on ? '#00E5FF' : 'rgba(255,255,255,0.55)' } })}
     </span>
   );
 }
@@ -95,20 +96,20 @@ export function PlaceRow({ place, query = '', on, onPick, onHover, from, trailin
   const far = place.kind === 'current' ? '' : distanceText(from, place);
   return (
     <div id={id} role="option" aria-selected={on} onMouseEnter={onHover}
-      className={`group relative flex items-center rounded-lg transition-colors ${on ? 'bg-[rgba(var(--gold-rgb),0.08)]' : 'hover:bg-white/[0.035]'}`}>
-      {on && <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2px] rounded-full bg-[var(--gold-primary)]" />}
+      className={`group relative flex items-center rounded-lg transition-all duration-150 ${on ? 'bg-[#00E5FF]/10 border border-[#00E5FF]/35 shadow-[0_0_12px_rgba(0,229,255,0.12)]' : 'border border-transparent hover:bg-white/[0.04]'}`}>
+      {on && <span aria-hidden className="absolute left-0 top-2 bottom-2 w-[2.5px] rounded-full bg-[#00E5FF] shadow-[0_0_8px_#00E5FF]" />}
       <button type="button" onClick={onPick} tabIndex={-1}
         className="flex-1 min-w-0 flex items-center gap-3 pl-3 pr-2 py-2 text-left">
         <KindTile kind={kind} on={on} />
         <span className="flex-1 min-w-0">
-          <span className={`block text-[13px] leading-snug truncate ${place.kind === 'coordinate' ? 'font-mono tabular-nums' : ''} text-[var(--text-heading)]`}>
+          <span className={`block text-[13px] leading-snug truncate ${place.kind === 'coordinate' ? 'font-mono tabular-nums' : ''} text-white font-medium`}>
             <Highlight text={place.label} query={query} />
           </span>
-          {place.context && <span className="block mt-0.5 text-[11px] leading-snug truncate text-[var(--text-muted)]">{place.context}</span>}
+          {place.context && <span className="block mt-0.5 text-[11px] leading-snug truncate text-slate-400 font-sans">{place.context}</span>}
         </span>
         <span className="flex flex-col items-end gap-0.5 flex-shrink-0 pl-1">
-          {far && <span className="text-[11px] font-mono tabular-nums text-[var(--text-secondary)]" title="From the centre of the map">{far}</span>}
-          <span className="text-[9px] font-mono tracking-[0.12em] uppercase text-[var(--text-muted)]">{kindLabel(kind)}</span>
+          {far && <span className="text-[11px] font-mono tabular-nums text-[#00E5FF]/80" title="From the centre of the map">{far}</span>}
+          <span className="text-[9px] font-mono tracking-[0.14em] uppercase text-slate-400">{kindLabel(kind)}</span>
         </span>
       </button>
       {trailing && <span className="pr-2 flex-shrink-0">{trailing}</span>}
@@ -118,5 +119,5 @@ export function PlaceRow({ place, query = '', on, onPick, onHover, from, trailin
 
 /** A keyboard key, for hints. */
 export function Key({ children }: { children: ReactNode }) {
-  return <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-[var(--border-primary)] bg-white/[0.03] text-[9.5px] font-mono text-[var(--text-secondary)] leading-none">{children}</kbd>;
+  return <kbd className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded border border-[#00E5FF]/30 bg-[#00E5FF]/5 text-[9.5px] font-mono text-[#00E5FF]/80 leading-none shadow-[0_0_6px_rgba(0,229,255,0.1)]">{children}</kbd>;
 }

@@ -183,9 +183,9 @@ function ToggleSwitch({ active }: { active: boolean }) {
       <div
         className="absolute inset-0 rounded-full transition-all duration-300"
         style={{
-          background: active ? 'rgba(255,255,255,0.2)' : 'transparent',
-          border: active ? '1px solid rgba(255,255,255,0.35)' : '1px solid rgba(255,255,255,0.12)',
-          boxShadow: active ? '0 0 8px rgba(255,255,255,0.1)' : 'none',
+          background: active ? 'rgba(0, 229, 255, 0.25)' : 'rgba(255,255,255,0.06)',
+          border: active ? '1px solid rgba(0, 229, 255, 0.6)' : '1px solid rgba(255,255,255,0.15)',
+          boxShadow: active ? '0 0 10px rgba(0, 229, 255, 0.3)' : 'none',
         }}
       />
       <motion.div
@@ -193,8 +193,8 @@ function ToggleSwitch({ active }: { active: boolean }) {
         style={{
           width: 10,
           height: 10,
-          background: active ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
-          boxShadow: active ? '0 0 6px rgba(255,255,255,0.4)' : 'none',
+          background: active ? '#00E5FF' : 'rgba(255,255,255,0.3)',
+          boxShadow: active ? '0 0 8px rgba(0, 229, 255, 0.8)' : 'none',
         }}
         animate={{ left: active ? 16 : 2 }}
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
@@ -211,7 +211,7 @@ function SubLayerStem() {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute left-[6px] top-0 h-1/2 w-[8px] rounded-bl-[3px] border-b border-l border-white/[0.14]"
+      className="pointer-events-none absolute left-[6px] top-0 h-1/2 w-[8px] rounded-bl-[3px] border-b border-l border-[#00E5FF]/40"
     />
   );
 }
@@ -431,9 +431,10 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                   <span
                     className="absolute top-1 right-1 min-w-[13px] h-[13px] px-[3px] rounded-full flex items-center justify-center text-[9px] font-mono tabular-nums leading-none"
                     style={{
-                      background: 'rgba(0,229,255,0.9)',
-                      color: '#04040A',
-                      boxShadow: '0 0 6px rgba(0,229,255,0.5)',
+                      background: '#00E5FF',
+                      color: '#000000',
+                      fontWeight: 'bold',
+                      boxShadow: '0 0 8px #00E5FF',
                     }}
                   >
                     {activeCount}
@@ -450,24 +451,17 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                     animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
                     exit={{ opacity: 0, x: -4, filter: 'blur(2px)' }}
                     transition={{ duration: 0.18, ease: 'easeOut' }}
-                    className={`absolute left-[52px] ${index === 0 ? 'top-0' : 'top-1/2 -translate-y-1/2'} min-w-[220px] rounded-xl p-3 z-[100] pointer-events-auto`}
-                    style={{
-                      background: 'rgba(0,0,0,0.6)',
-                      backdropFilter: 'blur(40px) saturate(1.5)',
-                      WebkitBackdropFilter: 'blur(40px) saturate(1.5)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-                    }}
+                    className={`absolute left-[52px] ${index === 0 ? 'top-0' : 'top-1/2 -translate-y-1/2'} min-w-[240px] rounded-xl p-3 z-[100] pointer-events-auto bg-[#070D18]/95 backdrop-blur-xl border border-[#00E5FF]/30 shadow-[0_8px_32px_rgba(0,0,0,0.8),0_0_20px_rgba(0,229,255,0.12)] font-mono`}
                   >
-                    <div className="flex items-center gap-2 mb-2.5 pb-1.5 border-b border-white/[0.04]">
-                      <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-white/35 flex-1">
+                    <div className="flex items-center gap-2 mb-2.5 pb-2 border-b border-white/10">
+                      <span className="text-[10.5px] font-mono tracking-[0.2em] uppercase text-[#00E5FF] font-bold flex-1">
                         {group.fullLabel}
                       </span>
                       {/* Switching eight satellite layers one at a time is the
                           kind of thing that makes a panel feel unfinished. */}
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleGroup(group.layers); }}
-                        className="px-1.5 py-0.5 rounded text-[10px] font-mono tracking-wider text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                        className="px-2 py-0.5 rounded text-[9.5px] font-mono tracking-wider border border-[#00E5FF]/30 bg-[#00E5FF]/10 text-[#00E5FF] hover:bg-[#00E5FF]/25 hover:border-[#00E5FF]/60 transition-all shadow-[0_0_8px_rgba(0,229,255,0.1)]"
                       >
                         {activeCount > 0 ? 'NONE' : 'ALL'}
                       </button>
@@ -494,16 +488,16 @@ function LayerPanel({ data, activeLayers, setActiveLayers, isMobile, theme = 'co
                             aria-pressed={!!isLayerActive}
                             aria-label={layer.label}
                             title={dormant ? 'Turn the layer above on to use this' : undefined}
-                            className={`relative w-full flex items-center gap-3 py-1.5 rounded-md hover:bg-white/[0.05] transition-colors cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-white/30 ${layer.parent ? 'pl-[22px] pr-1' : 'px-1'} ${dormant ? 'opacity-40' : ''}`}
+                            className={`relative w-full flex items-center gap-3 py-1.5 px-2 rounded-lg transition-all duration-150 cursor-pointer text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-[#00E5FF]/50 ${isLayerActive ? 'bg-[#00E5FF]/10 border border-[#00E5FF]/30 shadow-[0_0_10px_rgba(0,229,255,0.1)]' : 'border border-transparent hover:bg-white/[0.05]'} ${layer.parent ? 'pl-[22px]' : ''} ${dormant ? 'opacity-40' : ''}`}
                           >
                             {layer.parent && <SubLayerStem />}
                             <ToggleSwitch active={!!isLayerActive} />
-                            <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white/70' : 'text-white/35'}`}>
+                            <span className={`text-[11px] font-mono uppercase tracking-wider flex-1 transition-colors duration-200 ${isLayerActive ? 'text-white font-medium' : 'text-slate-400'}`}>
                               {layer.label}
                               {(liveStatus?.[layer.key] ?? layer.description) && <span className={`block mt-0.5 text-[9px] normal-case tracking-normal ${liveStatus?.[layer.key] ? 'text-white/55' : 'text-white/35'}`}>{liveStatus?.[layer.key] ?? layer.description}</span>}
                             </span>
                             {count !== null && (
-                              <span className={`text-[10px] font-mono tabular-nums transition-colors ${isLayerActive ? 'text-white/45' : 'text-white/20'}`}>
+                              <span className={`text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded transition-colors ${isLayerActive ? 'bg-[#00E5FF]/15 text-[#00E5FF] border border-[#00E5FF]/30' : 'text-slate-500 bg-white/[0.03]'}`}>
                                 {count.toLocaleString()}
                               </span>
                             )}
