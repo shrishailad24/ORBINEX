@@ -229,6 +229,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     onMapClickRef.current = onMapClick;
   }, [isPickingPoint, onPickPoint, onMapClick]);
 
+
+
+  const alertPinsRef = useRef<AlertPinFeature[]>([]);
+  const openAlertPinRef = useRef<((id: string) => void) | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     const canvas = mapRef.current.getCanvas();
@@ -238,10 +244,6 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
       canvas.style.cursor = '';
     }
   }, [mapReady, isPickingPoint]);
-
-  const alertPinsRef = useRef<AlertPinFeature[]>([]);
-  const openAlertPinRef = useRef<((id: string) => void) | null>(null);
-  const [mapReady, setMapReady] = useState(false);
 
   // Do not replay an earlier explicit zoom request after theme/retry remounts.
   const lastTerrainFocus = useRef(terrainFocus);
