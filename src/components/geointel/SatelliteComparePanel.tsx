@@ -308,6 +308,8 @@ export default function SatelliteComparePanel({
           beforeUrl,
           afterUrl,
           areaKm2,
+          beforeDate: comparison.before.matchedScene.datetime || beforeDate,
+          afterDate: comparison.after.matchedScene.datetime || afterDate,
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1236,6 +1238,38 @@ export default function SatelliteComparePanel({
             </div>
           </div>
 
+          {/* Temporal Gap & Seasonal Phenology Integrity Card */}
+          {(() => {
+            const bDateObj = new Date(beforeDate);
+            const aDateObj = new Date(afterDate);
+            const daysBetween = Math.abs(Math.round((aDateObj.getTime() - bDateObj.getTime()) / (1000 * 60 * 60 * 24)));
+            const yearsBetween = (daysBetween / 365.25).toFixed(1);
+            const bMonth = bDateObj.getUTCMonth();
+            const aMonth = aDateObj.getUTCMonth();
+            const seasonalDiffMonths = Math.min(Math.abs(aMonth - bMonth), 12 - Math.abs(aMonth - bMonth));
+
+            return (
+              <div className="p-2 rounded bg-black/50 border border-white/10 space-y-1 text-[8.5px] font-mono">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span className="text-slate-400">Temporal Baseline:</span>
+                  <span className="text-cyan-400 font-bold">{daysBetween.toLocaleString()} days ({yearsBetween} yrs)</span>
+                </div>
+                {daysBetween > 1095 && (
+                  <div className="text-amber-300/90 text-[7.5px] leading-tight flex items-start gap-1 pt-1 border-t border-white/5">
+                    <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0 mt-0.5 text-amber-400" />
+                    <span><b>Extended Baseline:</b> {yearsBetween} year gap. Ecological succession, gradual canopy growth, and macro climate trends may dominate short-term disturbance signals.</span>
+                  </div>
+                )}
+                {seasonalDiffMonths >= 3 && (
+                  <div className="text-amber-300/80 text-[7.5px] leading-tight flex items-start gap-1 pt-1 border-t border-white/5">
+                    <AlertTriangle className="w-2.5 h-2.5 flex-shrink-0 mt-0.5 text-amber-400" />
+                    <span><b>Seasonal Divergence:</b> {seasonalDiffMonths}-month offset (Month {bMonth + 1} vs Month {aMonth + 1}). Spectral differences may reflect cyclical dry vs monsoon vegetation cycles rather than true land-cover changes.</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Processing Controls */}
           <div className="p-2.5 rounded bg-black/40 border border-white/10 space-y-2">
             <div className="flex items-center justify-between">
@@ -1666,6 +1700,14 @@ export default function SatelliteComparePanel({
                           <span className="text-slate-400">Monitored AOI Area:</span>
                           <span className="text-white font-bold">{analysisReport.aoi_area_km2} km²</span>
                         </div>
+                        {analysisReport.valid_overlap_pct != null && (
+                          <div className="flex items-center justify-between text-[8.5px]">
+                            <span className="text-slate-400">Valid Surface Overlap:</span>
+                            <span className={`font-mono font-bold ${analysisReport.valid_overlap_pct >= 75 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {analysisReport.valid_overlap_pct}%
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-[8.5px]">
                           <span className="text-slate-400">Total Detected Change:</span>
                           <span className="text-amber-400 font-bold">{analysisReport.total_change_pct}% ({analysisReport.changed_area_km2} km²)</span>

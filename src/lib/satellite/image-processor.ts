@@ -26,6 +26,8 @@ export interface SatelliteProcessedMetadata {
   output_dimensions: [number, number];
   contrast_stretched: boolean;
   spatial_crop_applied: boolean;
+  valid_pixel_pct?: number;
+  swath_edge_detected?: boolean;
   scene_bbox: [number, number, number, number] | null;
   aoi_bbox: [number, number, number, number] | null;
   attribution: string;

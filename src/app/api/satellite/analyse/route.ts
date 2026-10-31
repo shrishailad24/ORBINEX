@@ -72,7 +72,7 @@ async function resolveAssetToFile(inputUrl: string): Promise<string> {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { beforeUrl, afterUrl, areaKm2 = 100.0 } = body;
+    const { beforeUrl, afterUrl, areaKm2 = 100.0, beforeDate, afterDate } = body;
 
     if (!beforeUrl || !afterUrl) {
       return NextResponse.json(
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     }
 
     const scriptPath = path.join(process.cwd(), 'src', 'lib', 'satellite', 'analyzer.py');
-    const hash = crypto.createHash('sha256').update(`${beforeUrl}:${afterUrl}:${areaKm2}`).digest('hex').slice(0, 16);
+    const hash = crypto.createHash('sha256').update(`${beforeUrl}:${afterUrl}:${areaKm2}:${beforeDate || ''}:${afterDate || ''}`).digest('hex').slice(0, 16);
     const tempDir = path.join(os.tmpdir(), 'orbinex_analysis');
     await fs.mkdir(tempDir, { recursive: true });
 
@@ -131,6 +131,13 @@ export async function POST(request: Request) {
       '--output-heatmap', outputHeatmap,
       '--area-km2', String(areaKm2),
     ];
+
+    if (beforeDate) {
+      pyArgs.push('--before-date', beforeDate);
+    }
+    if (afterDate) {
+      pyArgs.push('--after-date', afterDate);
+    }
 
     await new Promise<void>((resolve, reject) => {
       const proc = spawn('python', pyArgs);

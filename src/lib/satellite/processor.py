@@ -180,15 +180,46 @@ def main():
                 new_h = max(32, int(cur_h * scale))
                 img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                 
-            # 5. Percentile Contrast Stretch
+            # 5. Percentile Contrast Stretch & Nodata Transparency Masking
             img_arr = np.array(img)
             stretch_applied = False
+            
+            # Compute nodata mask (near-black swath margin: R<=3 & G<=3 & B<=3)
+            # and check for large solid-white unobserved padding (R>=252 & G>=252 & B>=252)
+            if img_arr.ndim == 3 and img_arr.shape[2] >= 3:
+                r_c = img_arr[:, :, 0]
+                g_c = img_arr[:, :, 1]
+                b_c = img_arr[:, :, 2]
+                black_nodata = (r_c <= 3) & (g_c <= 3) & (b_c <= 3)
+                white_nodata = (r_c >= 252) & (g_c >= 252) & (b_c >= 252)
+                
+                # Treat white as nodata only if it forms large border regions (>25% of image)
+                white_ratio = float(np.mean(white_nodata))
+                if white_ratio > 0.25:
+                    nodata_mask = black_nodata | white_nodata
+                else:
+                    nodata_mask = black_nodata
+                    
+                valid_pixel_pct = round(float(np.mean(~nodata_mask)) * 100.0, 2)
+            else:
+                nodata_mask = np.zeros(img_arr.shape[:2], dtype=bool)
+                valid_pixel_pct = 100.0
+
             if args.stretch:
                 img_arr = apply_contrast_stretch(img_arr, 2.0, 98.0)
                 stretch_applied = True
                 
-            # 6. Save Output PNG
-            out_img = Image.fromarray(img_arr)
+            # 6. Save Output PNG with Alpha transparency for nodata swath edges
+            if img_arr.ndim == 3 and img_arr.shape[2] >= 3:
+                h_out, w_out = img_arr.shape[:2]
+                rgba_out = np.zeros((h_out, w_out, 4), dtype=np.uint8)
+                rgba_out[:, :, :3] = img_arr[:, :, :3]
+                # Nodata regions transparent (0), valid imagery opaque (255)
+                rgba_out[:, :, 3] = np.where(nodata_mask, 0, 255).astype(np.uint8)
+                out_img = Image.fromarray(rgba_out, mode='RGBA')
+            else:
+                out_img = Image.fromarray(img_arr)
+
             os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
             out_img.save(args.output, format="PNG", optimize=True)
             
@@ -201,6 +232,8 @@ def main():
                     "output_dimensions": list(out_img.size),
                     "contrast_stretched": stretch_applied,
                     "spatial_crop_applied": cropped,
+                    "valid_pixel_pct": valid_pixel_pct,
+                    "swath_edge_detected": bool(valid_pixel_pct < 85.0),
                     "scene_bbox": [float(x.strip()) for x in args.scene_bbox.split(',')] if args.scene_bbox else None,
                     "aoi_bbox": [float(x.strip()) for x in args.aoi_bbox.split(',')] if args.aoi_bbox else None,
                     "attribution": "Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84",
