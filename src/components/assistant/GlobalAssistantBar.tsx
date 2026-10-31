@@ -347,8 +347,13 @@ export default function GlobalAssistantBar({
 
       {/* Minimal Capsule Assistant Bar (Exact Match with Reference Design) */}
       <div className="relative flex items-center gap-3 bg-[#070D18]/90 backdrop-blur-2xl border border-[#00E5FF]/40 hover:border-[#00E5FF]/70 focus-within:border-[#00E5FF] rounded-full px-4 py-2 shadow-[0_0_35px_rgba(0,0,0,0.85),0_0_20px_rgba(0,229,255,0.18)] transition-all">
-        {/* Sparkle icon */}
-        <Sparkles className="w-4 h-4 text-[#00E5FF] shrink-0 animate-pulse" />
+        {/* Exact Gemini / ORBINEX AI Sparkle Glyph */}
+        <div className="shrink-0 flex items-center justify-center text-[#00E5FF]">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
 
         {/* Text Input */}
         <input
@@ -362,7 +367,7 @@ export default function GlobalAssistantBar({
             }
           }}
           placeholder="Ask ORBINEX anything about our planet..."
-          className="w-full bg-transparent text-white text-[12.5px] font-mono placeholder:text-slate-500 focus:outline-none tracking-wide"
+          className="w-full bg-transparent text-white text-[12.5px] font-mono placeholder:text-slate-400/80 focus:outline-none tracking-wide"
         />
 
         {/* View Previous Response Indicator Badge (if minimized) */}
@@ -394,7 +399,7 @@ export default function GlobalAssistantBar({
           onClick={() => handleSendMessage()}
           disabled={!input.trim() || loading}
           title="Send query"
-          className="w-7 h-7 rounded-full bg-[#00E5FF]/10 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 hover:border-[#00E5FF] flex items-center justify-center text-[#00E5FF] hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-[#00E5FF]/10 disabled:hover:border-[#00E5FF]/40 shrink-0"
+          className="w-7 h-7 rounded-full bg-[#00E5FF]/10 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 hover:border-[#00E5FF] flex items-center justify-center text-[#00E5FF] hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-[#00E5FF]/10 disabled:hover:border-[#00E5FF]/40 shrink-0 shadow-[0_0_10px_rgba(0,229,255,0.1)]"
         >
           <Send className="w-3.5 h-3.5" />
         </button>

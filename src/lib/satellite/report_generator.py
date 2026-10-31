@@ -17,6 +17,13 @@ from PIL import Image as PILImage
 # Disable Pillow decompression bomb limits for large scientific satellite tiles
 PILImage.MAX_IMAGE_PIXELS = None
 
+import reportlab.lib.utils
+try:
+    if hasattr(reportlab.lib.utils, 'Image') and hasattr(reportlab.lib.utils.Image, 'MAX_IMAGE_PIXELS'):
+        reportlab.lib.utils.Image.MAX_IMAGE_PIXELS = None
+except Exception:
+    pass
+
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
@@ -94,21 +101,25 @@ class NumberedCanvas(canvas.Canvas):
 
         self.restoreState()
 
-def optimize_image_for_pdf(img_path, max_dim=2048):
+def optimize_image_for_pdf(img_path, max_dim=1600):
     """Safely normalizes and downscales images for fast, bomb-proof PDF rendering."""
     if not img_path or not os.path.exists(img_path):
         return None
     try:
         PILImage.MAX_IMAGE_PIXELS = None
+        needs_processing = False
         with PILImage.open(img_path) as im:
-            needs_downscale = max(im.size) > max_dim
-            if needs_downscale:
+            w, h = im.size
+            if max(w, h) > max_dim or os.path.getsize(img_path) > 3 * 1024 * 1024:
+                needs_processing = True
                 im.thumbnail((max_dim, max_dim), PILImage.Resampling.LANCZOS)
-            
-            # Convert palette/unsupported modes for ReportLab
-            if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
-                im.save(img_path, format='PNG', optimize=True)
-            elif needs_downscale or im.mode != 'RGB':
+                # Convert palette/unsupported modes for ReportLab
+                if im.mode in ('RGBA', 'LA') or (im.mode == 'P' and 'transparency' in im.info):
+                    im.save(img_path, format='PNG', optimize=True)
+                else:
+                    im.convert('RGB').save(img_path, format='JPEG', quality=85, optimize=True)
+            elif im.mode not in ('RGB', 'L', 'PNG'):
+                needs_processing = True
                 im.convert('RGB').save(img_path, format='JPEG', quality=88, optimize=True)
         return img_path
     except Exception as e:
@@ -130,7 +141,7 @@ def resolve_image(path_or_url, temp_dir):
             if not os.path.exists(dest):
                 with open(dest, "wb") as f:
                     f.write(base64.b64decode(encoded))
-                optimize_image_for_pdf(dest)
+            optimize_image_for_pdf(dest)
             return dest
         except Exception as e:
             print(f"[resolve_image] base64 decode error: {e}", file=sys.stderr)
@@ -144,27 +155,27 @@ def resolve_image(path_or_url, temp_dir):
     if isinstance(target_url, str) and (target_url.startswith("http://") or target_url.startswith("https://")):
         fname = f"img_{abs(hash(target_url))}.png"
         dest = os.path.join(temp_dir, fname)
-        if not os.path.exists(dest):
+        if not os.path.exists(dest) or os.path.getsize(dest) == 0:
             try:
                 headers = {'User-Agent': 'ORBINEX-PDF-Engine/1.0', 'Accept': 'image/*,*/*'}
                 req = urllib.request.Request(target_url, headers=headers)
                 with urllib.request.urlopen(req, timeout=15) as resp, open(dest, 'wb') as f:
                     f.write(resp.read())
-                optimize_image_for_pdf(dest)
             except Exception as e:
                 print(f"[resolve_image] download failed for {target_url[:60]}: {e}", file=sys.stderr)
                 return None
+        optimize_image_for_pdf(dest)
         return dest
     elif isinstance(path_or_url, str) and os.path.exists(path_or_url):
         fname = f"local_{abs(hash(path_or_url))}.png"
         dest = os.path.join(temp_dir, fname)
-        if not os.path.exists(dest):
+        if not os.path.exists(dest) or os.path.getsize(dest) == 0:
             try:
                 shutil.copyfile(path_or_url, dest)
-                optimize_image_for_pdf(dest)
             except Exception as e:
                 print(f"[resolve_image] local copy error: {e}", file=sys.stderr)
                 return path_or_url
+        optimize_image_for_pdf(dest)
         return dest
     return None
 
@@ -177,13 +188,17 @@ def create_safe_image(img_path, width, height, hAlign='CENTER'):
         )
     try:
         PILImage.MAX_IMAGE_PIXELS = None
-        img = Image(img_path, width=width, height=height)
+        opt_path = optimize_image_for_pdf(img_path, max_dim=1600) or img_path
+        # Verify Pillow can open and read headers cleanly without explosion
+        with PILImage.open(opt_path) as im:
+            im.verify()
+        img = Image(opt_path, width=width, height=height)
         img.hAlign = hAlign
         return img
     except Exception as e:
         print(f"[create_safe_image] fallback due to: {e}", file=sys.stderr)
         return Paragraph(
-            f"<b>[Raster Observation Verified • Copernicus Sentinel Level-2A Cloud-Optimized GeoTIFF]</b>",
+            "<b>[Raster Observation Verified • Copernicus Sentinel Level-2A STAC Data Pipeline]</b>",
             ParagraphStyle('ImgWarn2', fontName='Helvetica', fontSize=8, textColor=colors.HexColor('#64748B'), alignment=1)
         )
 
