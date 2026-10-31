@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cachedSource } from '@/lib/sourceCache';
 import { nominatim } from '@/lib/nominatim';
 import { mergeResults, normalizeNominatim, type GeoResult, type NominatimRow } from '@/lib/geosearch';
+import { searchInstitutionalCatalog } from '@/lib/geosearch-institutions';
 
 export const maxDuration = 20;
 
@@ -34,7 +35,11 @@ export async function GET(request: Request) {
 
     const results = await cachedSource<GeoResult>(
       `geosearch:${q.toLowerCase()}`,
-      async () => mergeResults([], await searchNominatim(q)),
+      async () => {
+        const local = searchInstitutionalCatalog(q);
+        const nom = await searchNominatim(q.replace(/['"’]/g, ''));
+        return mergeResults(local, nom);
+      },
       10 * 60 * 1000,
     )();
 

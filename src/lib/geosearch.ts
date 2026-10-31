@@ -21,6 +21,8 @@
  * back thin.
  */
 
+import { searchInstitutionalCatalog } from './geosearch-institutions';
+
 const PHOTON = 'https://photon.komoot.io/api';
 
 export interface GeoResult {
@@ -189,13 +191,29 @@ export async function searchPlaces(
   signal?: AbortSignal,
   onPartial?: (results: GeoResult[]) => void,
 ): Promise<GeoResult[]> {
-  const photon = await getJson<{ features?: PhotonFeature[] }>(photonUrl(q, near), signal, PHOTON_TIMEOUT_MS);
+  const localHits = searchInstitutionalCatalog(q);
+  if (localHits.length > 0) {
+    onPartial?.(localHits);
+  }
+
+  const sanitizedQ = q.replace(/['"’]/g, '');
+  const photon = await getJson<{ features?: PhotonFeature[] }>(photonUrl(sanitizedQ, near), signal, PHOTON_TIMEOUT_MS);
   const direct = (photon?.features || []).map(normalizePhoton).filter((r): r is GeoResult => r !== null);
-  if (direct.length >= ENOUGH_FROM_PHOTON) return mergeResults(direct, []);
-  if (direct.length) onPartial?.(mergeResults(direct, []));
+  
+  // If we have local institutional hits, merge them and continue or return immediately if comprehensive
+  if (localHits.length > 0) {
+    const combined = mergeResults(localHits, direct);
+    if (combined.length >= ENOUGH_FROM_PHOTON) return combined;
+  } else if (direct.length >= ENOUGH_FROM_PHOTON) {
+    return mergeResults(direct, []);
+  }
+
+  if (direct.length || localHits.length) {
+    onPartial?.(mergeResults(localHits, direct));
+  }
 
   const server = await getJson<{ results?: GeoResult[] }>(
-    `/api/geosearch?q=${encodeURIComponent(q)}`, signal, SUPPLEMENT_TIMEOUT_MS,
+    `/api/geosearch?q=${encodeURIComponent(sanitizedQ)}`, signal, SUPPLEMENT_TIMEOUT_MS,
   );
-  return mergeResults(direct, server?.results || []);
+  return mergeResults(localHits, [...direct, ...(server?.results || [])]);
 }
