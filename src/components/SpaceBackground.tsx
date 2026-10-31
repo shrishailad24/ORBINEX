@@ -89,24 +89,24 @@ export default function SpaceBackground({
       time += 1;
       ctx.clearRect(0, 0, width, height);
 
-      // ── 1. Cosmic Deep Space Gradient ──
+      // ── 1. True Obsidian Deep Space Gradient ──
       const bgGrad = ctx.createRadialGradient(
         width * 0.5,
         height * 0.45,
-        width * 0.1,
+        width * 0.05,
         width * 0.5,
         height * 0.5,
-        Math.max(width, height) * 0.85
+        Math.max(width, height) * 0.8
       );
-      bgGrad.addColorStop(0, '#04122C'); // Deep cosmic navy center
-      bgGrad.addColorStop(0.35, '#020B1D'); // Midnight space blue
-      bgGrad.addColorStop(0.7, '#010612'); // Deep interstellar void
-      bgGrad.addColorStop(1, '#000308'); // Pure obsidian space
+      bgGrad.addColorStop(0, '#020713'); // Extremely dark midnight blue undertone at center
+      bgGrad.addColorStop(0.3, '#01040B'); // Deep space near-black
+      bgGrad.addColorStop(0.65, '#000206'); // Pitch black vacuum
+      bgGrad.addColorStop(1, '#000002'); // True obsidian space
 
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // ── 2. Glowing Nebula Dust Clouds ──
+      // ── 2. Glowing Nebula Dust Clouds (Faint & Mysterious) ──
       // Top-left cyan nebula
       const nebula1 = ctx.createRadialGradient(
         width * 0.25,
@@ -114,10 +114,10 @@ export default function SpaceBackground({
         10,
         width * 0.25,
         height * 0.3,
-        width * 0.45
+        width * 0.4
       );
-      nebula1.addColorStop(0, 'rgba(0, 229, 255, 0.07)');
-      nebula1.addColorStop(0.5, 'rgba(2, 56, 110, 0.04)');
+      nebula1.addColorStop(0, 'rgba(0, 200, 255, 0.035)');
+      nebula1.addColorStop(0.5, 'rgba(2, 35, 80, 0.015)');
       nebula1.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = nebula1;
       ctx.fillRect(0, 0, width, height);
@@ -129,25 +129,25 @@ export default function SpaceBackground({
         20,
         width * 0.75,
         height * 0.7,
-        width * 0.5
+        width * 0.45
       );
-      nebula2.addColorStop(0, 'rgba(30, 64, 175, 0.09)');
-      nebula2.addColorStop(0.6, 'rgba(14, 116, 144, 0.03)');
+      nebula2.addColorStop(0, 'rgba(20, 50, 150, 0.04)');
+      nebula2.addColorStop(0.6, 'rgba(5, 20, 60, 0.01)');
       nebula2.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = nebula2;
       ctx.fillRect(0, 0, width, height);
 
-      // Central planetary aura (subtle blue glow behind the globe)
+      // Central planetary aura (subtle atmospheric halo behind the globe)
       const aura = ctx.createRadialGradient(
         width * 0.5,
         height * 0.5,
-        150,
+        120,
         width * 0.5,
         height * 0.5,
-        Math.min(width, height) * 0.55
+        Math.min(width, height) * 0.52
       );
-      aura.addColorStop(0, 'rgba(0, 136, 255, 0.05)');
-      aura.addColorStop(0.7, 'rgba(0, 70, 160, 0.02)');
+      aura.addColorStop(0, 'rgba(0, 100, 240, 0.025)');
+      aura.addColorStop(0.8, 'rgba(0, 40, 120, 0.008)');
       aura.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = aura;
       ctx.fillRect(0, 0, width, height);

@@ -2484,7 +2484,7 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
     // Switch to globe and fly to the sweep location
     try {
       applyMapProjection(map, 'globe');
-      map.setSky({ 'sky-color': 'rgba(2, 11, 28, 0.45)', 'sky-horizon-blend': 0.25, 'horizon-color': '#0066FF', 'horizon-fog-blend': 0.12, 'fog-color': 'rgba(2, 8, 20, 0.5)', 'fog-ground-blend': 0.85 });
+      map.setSky({ 'sky-color': 'rgba(1, 4, 12, 0.65)', 'sky-horizon-blend': 0.18, 'horizon-color': '#0052cc', 'horizon-fog-blend': 0.08, 'fog-color': 'rgba(1, 3, 10, 0.7)', 'fog-ground-blend': 0.9 });
     } catch { /* projection may not be supported */ }
 
     map.flyTo({ center: centerCoord, zoom: 14, pitch: 50, bearing: -20, duration: 3000, essential: true });
@@ -2567,12 +2567,12 @@ function OsirisMap({ data, activeLayers, onEntityClick, onMouseCoords, onRightCl
         if (configureSky && map.getPitch() < 0.5) map.easeTo({ pitch: 20, duration: 1200 });
         try {
           if (configureSky) map.setSky({
-            'sky-color': 'rgba(2, 11, 28, 0.45)',
-            'sky-horizon-blend': 0.25,
-            'horizon-color': '#0066FF',
-            'horizon-fog-blend': 0.12,
-            'fog-color': 'rgba(2, 8, 20, 0.5)',
-            'fog-ground-blend': 0.85,
+            'sky-color': 'rgba(1, 4, 12, 0.65)',
+            'sky-horizon-blend': 0.18,
+            'horizon-color': '#0052cc',
+            'horizon-fog-blend': 0.08,
+            'fog-color': 'rgba(1, 3, 10, 0.7)',
+            'fog-ground-blend': 0.9,
           });
         } catch (e) { console.warn('[OSIRIS] Suppressed error:', e instanceof Error ? e.message : e); }
       } else {
