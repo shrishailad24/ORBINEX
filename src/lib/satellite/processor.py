@@ -97,11 +97,18 @@ def crop_to_aoi(img, scene_bbox, aoi_bbox):
     y1 = int(top_pct * img_h)
     y2 = int(bottom_pct * img_h)
     
-    # Require at least 32px
-    if (x2 - x1) < 32 or (y2 - y1) < 32:
+    # Require at least 4px
+    if (x2 - x1) < 4 or (y2 - y1) < 4:
         return img
         
-    return img.crop((x1, y1, x2, y2))
+    cropped_img = img.crop((x1, y1, x2, y2))
+    # If cropped patch is small, upscale with high-quality resampling so it remains crisp and detailed
+    if cropped_img.width < 320 or cropped_img.height < 320:
+        scale = max(320 / float(cropped_img.width), 320 / float(cropped_img.height))
+        new_w = max(32, int(cropped_img.width * scale))
+        new_h = max(32, int(cropped_img.height * scale))
+        cropped_img = cropped_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+    return cropped_img
 
 def main():
     parser = argparse.ArgumentParser(description="ORBINEX Satellite Image Processor")

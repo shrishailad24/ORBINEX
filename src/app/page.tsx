@@ -2410,13 +2410,31 @@ export default function Dashboard() {
         drawnAOI={satelliteDrawnAOI}
         onClearDrawnAOI={() => setSatelliteDrawnAOI(null)}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 13, ts: Date.now() })}
-        onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl }) => {
+        onProjectImagery={({ beforeScene, afterScene, tileUrl, opacity, processedImageUrl, footprintBbox }) => {
           const scene = afterScene || beforeScene;
-          if (scene?.coordinates && (processedImageUrl || scene?.thumbnailUrl)) {
+          if (processedImageUrl && footprintBbox) {
+            // Cropped to AOI footprint: map to footprintBbox (perfect 1:1 fit with street map!)
+            const [minLng, minLat, maxLng, maxLat] = footprintBbox;
+            const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+              [minLng, maxLat], // top-left
+              [maxLng, maxLat], // top-right
+              [maxLng, minLat], // bottom-right
+              [minLng, minLat], // bottom-left
+            ];
+            setActiveSatelliteImagery({
+              id: scene?.id ?? 'footprint-layer',
+              type: 'image',
+              url: processedImageUrl,
+              coordinates,
+              opacity,
+              visible: true,
+            });
+          } else if (scene?.thumbnailUrl && scene?.coordinates) {
+            // Full raw scene uncropped: MUST use full scene.coordinates so it aligns geographically without distortion!
             setActiveSatelliteImagery({
               id: scene.id,
               type: 'image',
-              url: processedImageUrl || `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl!)}`,
+              url: `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`,
               coordinates: scene.coordinates,
               opacity,
               visible: true,

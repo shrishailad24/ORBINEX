@@ -56,6 +56,7 @@ interface SatelliteComparePanelProps {
     tileUrl?: string;
     opacity: number;
     processedImageUrl?: string;
+    footprintBbox?: [number, number, number, number];
   }) => void;
   onStartDrawAOI?: (mode: 'rectangle' | 'polygon') => void;
   drawnAOI?: {
@@ -134,7 +135,8 @@ export default function SatelliteComparePanel({
   }, [drawnAOI?.id]);
 
   const currentBbox = useMemo<[number, number, number, number]>(() => {
-    if (drawnAOI?.bbox) return drawnAOI.bbox;
+    // Always recompute from surroundingRadiusKm + activeLocation.
+    // Never fall back to drawnAOI.bbox (which is the full Sentinel tile bbox, ~100km²).
     const deltaLat = surroundingRadiusKm / 111.32;
     const cosLat = Math.cos((activeLocation.lat * Math.PI) / 180);
     const deltaLng = surroundingRadiusKm / (111.32 * Math.max(0.01, cosLat));
@@ -144,7 +146,7 @@ export default function SatelliteComparePanel({
       Number((activeLocation.lng + deltaLng).toFixed(6)),
       Number((activeLocation.lat + deltaLat).toFixed(6)),
     ];
-  }, [drawnAOI?.bbox, activeLocation.lat, activeLocation.lng, surroundingRadiusKm]);
+  }, [activeLocation.lat, activeLocation.lng, surroundingRadiusKm]);
 
   const computeBufferAOI = useCallback((lat: number, lng: number, radiusKm: number, label?: string) => {
     const deltaLat = radiusKm / 111.32;
@@ -180,6 +182,22 @@ export default function SatelliteComparePanel({
     const updatedAoi = computeBufferAOI(activeLocation.lat, activeLocation.lng, newRadiusKm, activeLocation.name);
     onUpdateAOI?.(updatedAoi);
   };
+
+  const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
+    if (!scene?.thumbnailUrl) return '';
+    if (cropped && scene.bbox && currentBbox) {
+      const params = new URLSearchParams({
+        url: scene.thumbnailUrl,
+        stretch: contrastStretch ? 'true' : 'false',
+        platform: scene.platform,
+        width: '640',
+        sceneBbox: scene.bbox.join(','),
+        aoiBbox: currentBbox.join(','),
+      });
+      return `/api/satellite/process?${params.toString()}`;
+    }
+    return `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`;
+  }, [currentBbox, contrastStretch]);
 
   // Global search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -402,11 +420,15 @@ export default function SatelliteComparePanel({
         if (activeScene) {
           setProjectedSceneId(activeScene.id);
         }
+        const targetScene = data.comparison.after.matchedScene || data.comparison.before.matchedScene;
+        const croppedUrl = targetScene && targetScene.bbox ? getSceneImageUrl(targetScene, true) : undefined;
         onProjectImagery?.({
           beforeScene: data.comparison.before.matchedScene,
           afterScene: data.comparison.after.matchedScene,
           tileUrl: data.comparison.after.tileUrl,
           opacity: opacity / 100,
+          processedImageUrl: croppedUrl,
+          footprintBbox: croppedUrl ? currentBbox : undefined,
         });
       }
     } catch (err: any) {
@@ -542,46 +564,30 @@ export default function SatelliteComparePanel({
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleProjectScene = async (scene: SatelliteScene, processFirst: boolean = false) => {
+  const handleProjectScene = async (scene: SatelliteScene, forceFullScene: boolean = false) => {
     if (!scene.thumbnailUrl) return;
     setProjectedSceneId(scene.id);
 
-    if (processFirst) {
+    if (!forceFullScene && scene.bbox && currentBbox) {
       setProcessing(true);
       try {
-        const params = new URLSearchParams({
-          url: scene.thumbnailUrl,
-          stretch: contrastStretch ? 'true' : 'false',
-          platform: scene.platform,
-          width: '1024',
-        });
-        if (scene.bbox) {
-          params.set('sceneBbox', scene.bbox.join(','));
-          // Center AOI
-          params.set('aoiBbox', [
-            activeLocation.lng - 0.15,
-            activeLocation.lat - 0.15,
-            activeLocation.lng + 0.15,
-            activeLocation.lat + 0.15,
-          ].join(','));
-        }
+        const croppedUrl = getSceneImageUrl(scene, true);
+        setProcessedImageUrl(croppedUrl);
 
-        const processUrl = `/api/satellite/process?${params.toString()}`;
-        setProcessedImageUrl(processUrl);
-
-        // Project onto map
         onProjectImagery?.({
           beforeScene: null,
           afterScene: scene,
           opacity: opacity / 100,
-          processedImageUrl: processUrl,
+          processedImageUrl: croppedUrl,
+          footprintBbox: currentBbox,
         });
       } catch (e) {
-        console.error('[ORBINEX] Processing failed:', e);
+        console.error('[ORBINEX] Cropping projection failed:', e);
       } finally {
         setProcessing(false);
       }
     } else {
+      // Full uncropped scene: display across full scene.coordinates so it is not distorted
       onProjectImagery?.({
         beforeScene: null,
         afterScene: scene,
@@ -973,8 +979,8 @@ export default function SatelliteComparePanel({
                 </div>
               )}
               <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[8px] text-slate-400 font-mono">
-                <span>BBOX: [{(activeLocation.lng - 0.15).toFixed(2)}, {(activeLocation.lat - 0.15).toFixed(2)}, {(activeLocation.lng + 0.15).toFixed(2)}, {(activeLocation.lat + 0.15).toFixed(2)}]</span>
-                <span className="text-emerald-400 font-bold">~1,080 km² AOI</span>
+                <span>BBOX: [{currentBbox.map((n) => n.toFixed(3)).join(', ')}]</span>
+                <span className="text-emerald-400 font-bold">~{(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km² AOI</span>
               </div>
             </div>
           </div>
@@ -1124,7 +1130,7 @@ export default function SatelliteComparePanel({
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
                     {comparison.before.matchedScene?.thumbnailUrl ? (
                       <img
-                        src={`/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`}
+                        src={getSceneImageUrl(comparison.before.matchedScene, true)}
                         alt="Before Satellite Scene"
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1207,7 +1213,7 @@ export default function SatelliteComparePanel({
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
                     {comparison.after.matchedScene?.thumbnailUrl ? (
                       <img
-                        src={`/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`}
+                        src={getSceneImageUrl(comparison.after.matchedScene, true)}
                         alt="After Satellite Scene"
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -1337,7 +1343,7 @@ export default function SatelliteComparePanel({
                   <div className="relative aspect-video rounded overflow-hidden select-none border border-white/20 bg-black cursor-ew-resize">
                     {/* AFTER IMAGE (Base layer) */}
                     <img
-                      src={`/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`}
+                      src={getSceneImageUrl(comparison.after.matchedScene, true)}
                       alt="After Scene"
                       className="absolute inset-0 w-full h-full object-cover"
                     />
@@ -1348,7 +1354,7 @@ export default function SatelliteComparePanel({
                       style={{ width: `${sliderPos}%` }}
                     >
                       <img
-                        src={`/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`}
+                        src={getSceneImageUrl(comparison.before.matchedScene, true)}
                         alt="Before Scene"
                         className="absolute inset-0 max-w-none w-[346px] h-full object-cover"
                       />
