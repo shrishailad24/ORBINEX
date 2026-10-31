@@ -93,7 +93,7 @@ export const metadata: Metadata = {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: `${BRAND.name} — ${BRAND.fullName}`,
+        alt: BRAND.fullTitle,
         type: "image/png",
       },
     ],
@@ -122,7 +122,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  name: `${BRAND.name} — ${BRAND.fullName}`,
+  name: BRAND.fullTitle,
   alternateName: ["ORBINEX", "OrbinexAI", "Orbinex Intelligence"],
   url: SITE_URL,
   description: SITE_DESCRIPTION,

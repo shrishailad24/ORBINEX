@@ -463,8 +463,10 @@ export async function GET() {
         // Kick off revalidation asynchronously in the background
         building = buildFeed().then(body => {
           feed = { at: Date.now(), body };
+          return body;
         }).catch(err => {
           console.warn('[ORBINEX] Background news feed refresh error:', err);
+          return feed!.body;
         }).finally(() => {
           building = null;
         });

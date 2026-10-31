@@ -1120,7 +1120,7 @@ export default function Dashboard() {
       areaKm2: newAoi.areaKm2,
       perimeterKm: 8 * radiusKm,
       color: '#00E5FF',
-      visible: true,
+      createdAt: Date.now(),
     };
     setDrawnPolygons((prev) => [
       shape,
@@ -2337,7 +2337,7 @@ export default function Dashboard() {
                     onClick={() => {
                       const c = regionDossier.coords;
                       setRegionDossier(null);
-                      handlePickPointForSatellite(c);
+                      handleSatellitePickPoint(c);
                     }}
                     className="w-full mt-2 py-1.5 px-3 rounded bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF] text-white text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(0,229,255,0.2)]"
                   >
@@ -2426,7 +2426,7 @@ export default function Dashboard() {
             areaKm2: newAoi.areaKm2,
             perimeterKm: 8 * (newAoi.radiusKm || Math.sqrt(newAoi.areaKm2) / 2),
             color: '#00E5FF',
-            visible: true,
+            createdAt: Date.now(),
           };
           setDrawnPolygons((prev) => [
             shape,

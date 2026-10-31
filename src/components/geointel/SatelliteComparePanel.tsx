@@ -30,6 +30,7 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Loader2
 } from 'lucide-react';
 import { STRATEGIC_PRESETS, type StrategicLocationPreset } from '@/lib/satellite/historical-providers';
@@ -478,22 +479,6 @@ export default function SatelliteComparePanel({
             matchedScene: { ...syntheticScene, id: 'highres-after', datetime: afterDate, thumbnailUrl: rawExportUrl },
             tileUrl: exportUrlAfter,
           },
-        });
-        setLoading(false);
-        return;
-      }
-            targetDate: afterDate,
-            matchedScene: syntheticScene,
-            tileUrl: undefined,
-          },
-        });
-        setProjectedSceneId(syntheticScene.id);
-        onProjectImagery?.({
-          beforeScene: null,
-          afterScene: syntheticScene,
-          opacity: opacity / 100,
-          processedImageUrl: proxiedUrl,
-          footprintBbox: currentBbox,
         });
         setLoading(false);
         return;

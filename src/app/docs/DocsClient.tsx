@@ -32,7 +32,7 @@ export default function DocsClient() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [origin, setOrigin] = useState(FALLBACK_ORIGIN);
+  const [origin, setOrigin] = useState<string>(FALLBACK_ORIGIN);
   const mainRef = useRef<HTMLElement>(null);
 
   const paletteItems = useMemo(() => buildPaletteItems(ALL_SECTIONS), []);
