@@ -74,11 +74,15 @@ export interface Credentials {
 export function credentials(req: Request, body: Record<string, unknown> = {}): Credentials | { error: string } {
   const h = (n: string) => req.headers.get(n)?.trim() || '';
   const auth = h('authorization');
-  const key = h('x-oi-key') || (/^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '');
+  let key = h('x-oi-key') || (/^bearer\s+/i.test(auth) ? auth.replace(/^bearer\s+/i, '').trim() : '');
   const providerRaw = h('x-oi-provider') || (typeof body.provider === 'string' ? body.provider : '');
   const modelRaw = h('x-oi-model') || (typeof body.model === 'string' ? body.model : '');
   if (providerRaw && !isProviderId(providerRaw.toLowerCase())) {
     return { error: `Unknown provider. Use one of: ${PROVIDERS.map(p => p.id).join(', ')}.` };
+  }
+  // Allow Groq to use pre-configured server key if client key is omitted
+  if (!key && providerRaw && providerRaw.toLowerCase() === 'groq') {
+    key = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY';
   }
   if (key && !isPlausibleKey(key)) return { error: 'That does not look like an API key.' };
   if (modelRaw && !isPlausibleModel(modelRaw)) return { error: 'That does not look like a model id.' };

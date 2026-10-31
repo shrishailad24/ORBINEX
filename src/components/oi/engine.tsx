@@ -120,7 +120,21 @@ export function EngineSheet({ engine, setEngine, keyValue, setKey, onDone }: {
               }} />
               Remember on this device
             </label>
-            <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className="ml-auto text-[var(--text-secondary)] hover:text-[var(--gold-light)]">Get a key ↗</a>
+            {engine.provider === 'groq' && !keyValue && (
+              <button
+                type="button"
+                onClick={() => {
+                  const k = 'YOUR_GROQ_API_KEY';
+                  setKey(k);
+                  saveKey('groq', k, engine.remember);
+                  setStatus({ kind: 'idle', text: '' });
+                }}
+                className="text-[#00E5FF] hover:underline text-[10px] font-mono ml-auto"
+              >
+                ⚡ Use Pre-Configured Key
+              </button>
+            )}
+            <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className={`${(engine.provider === 'groq' && !keyValue) ? '' : 'ml-auto'} text-[var(--text-secondary)] hover:text-[var(--gold-light)]`}>Get a key ↗</a>
             {keyValue && <button onClick={() => { forgetKey(engine.provider); setKey(''); setModels(null); setListed(false); setStatus({ kind: 'idle', text: '' }); }} className="text-[var(--text-secondary)] hover:text-[var(--alert-red)]">Forget</button>}
           </div>
         </div>
