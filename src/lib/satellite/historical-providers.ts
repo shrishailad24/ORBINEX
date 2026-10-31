@@ -3,8 +3,9 @@
  * Generates verified XYZ tile templates and dual-temporal comparison pairs.
  */
 
-import { type HistoricalComparisonPair, type SatelliteScene } from './types';
-import { searchSatelliteScenes } from './stac-client';
+import { type HistoricalComparisonPair, type SatellitePlatform, type SatelliteScene } from './types';
+import { bboxToQuadCoordinates, searchSatelliteScenes } from './stac-client';
+import { satelliteRegistry, type NormalizedSatelliteObservation } from './providers';
 
 export interface StrategicLocationPreset {
   id: string;
@@ -86,6 +87,26 @@ export function getWaybackTileUrl(date: string): string {
   return `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanDate}`;
 }
 
+function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, number, number, number]): SatelliteScene {
+  const sceneBbox = obs.bbox || fallbackBbox;
+  return {
+    id: obs.id,
+    platform: (obs.satellite as SatellitePlatform) || 'Sentinel-2',
+    modality: obs.modality,
+    collection: obs.productLevel,
+    datetime: obs.acquisitionDate,
+    cloudCover: obs.cloudCover,
+    bbox: sceneBbox,
+    coordinates: bboxToQuadCoordinates(sceneBbox),
+    thumbnailUrl: obs.thumbnailUrl || getWaybackTileUrl(obs.acquisitionDate),
+    visualUrl: obs.visualUrl || obs.thumbnailUrl || getWaybackTileUrl(obs.acquisitionDate),
+    metadata: {
+      resolutionMeters: obs.gsdMeters,
+      instrument: obs.sensor,
+    },
+  };
+}
+
 /**
  * Builds a dual-date historical satellite comparison pair for any coordinates and dates.
  */
@@ -94,7 +115,7 @@ export async function buildHistoricalComparison(
   lng: number,
   beforeDate: string,
   afterDate: string,
-  platform: 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS' = 'Sentinel-2',
+  platform: 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS' | 'Pléiades Neo' | 'SkySat' | 'WorldView-3' | 'High-Res' = 'Sentinel-2',
   radiusKm: number = 10,
   bbox?: [number, number, number, number]
 ): Promise<HistoricalComparisonPair> {
@@ -122,13 +143,65 @@ export async function buildHistoricalComparison(
     };
   }
 
-  // Optical or SAR STAC Search for both dates concurrently
+  // VHR Commercial Platforms via Satellite Registry (AI-03)
+  if (platform === 'Pléiades Neo' || platform === 'SkySat' || platform === 'WorldView-3') {
+    const providerFilter =
+      platform === 'Pléiades Neo'
+        ? ['airbus-oneatlas']
+        : platform === 'SkySat'
+          ? ['planet-data']
+          : ['maxar-ard'];
+
+    const fallbackBbox: [number, number, number, number] = bbox || [lng - 0.05, lat - 0.05, lng + 0.05, lat + 0.05];
+
+    const [beforeRes, afterRes] = await Promise.all([
+      satelliteRegistry.searchAll({
+        lat,
+        lng,
+        bbox,
+        radiusKm,
+        targetDate: cleanBefore,
+        providerFilter,
+        limit: 1,
+      }),
+      satelliteRegistry.searchAll({
+        lat,
+        lng,
+        bbox,
+        radiusKm,
+        targetDate: cleanAfter,
+        providerFilter,
+        limit: 1,
+      }),
+    ]);
+
+    const bestBefore = beforeRes.rankedBestObservation;
+    const bestAfter = afterRes.rankedBestObservation;
+
+    return {
+      locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,
+      center: { lat, lng },
+      zoom: 15,
+      before: {
+        targetDate: cleanBefore,
+        matchedScene: bestBefore ? obsToScene(bestBefore, fallbackBbox) : null,
+        tileUrl: getWaybackTileUrl(cleanBefore),
+      },
+      after: {
+        targetDate: cleanAfter,
+        matchedScene: bestAfter ? obsToScene(bestAfter, fallbackBbox) : null,
+        tileUrl: getWaybackTileUrl(cleanAfter),
+      },
+    };
+  }
+
+  // Standard Open STAC Search for both dates concurrently
   const [beforeScenes, afterScenes] = await Promise.all([
     searchSatelliteScenes({
       lat,
       lng,
       targetDate: cleanBefore,
-      platform,
+      platform: platform as any,
       radiusKm,
       bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,
@@ -138,7 +211,7 @@ export async function buildHistoricalComparison(
       lat,
       lng,
       targetDate: cleanAfter,
-      platform,
+      platform: platform as any,
       radiusKm,
       bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,

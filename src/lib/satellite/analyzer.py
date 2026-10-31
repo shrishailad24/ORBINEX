@@ -121,25 +121,34 @@ def analyze_changes(before_img, after_img, total_area_km2=100.0):
 
     heatmap_img = Image.fromarray(heatmap_rgba, mode='RGBA')
 
+    # Check for identical passes or zero inter-temporal variance
+    mean_abs_diff = float(np.mean(np.abs(a_arr - b_arr)))
+    is_identical_pass = mean_abs_diff < 0.8 or total_changed_pixels == 0
+
     # Generate Findings Summary
     findings = []
-    if veg_loss_pct > 1.0:
-        findings.append(f"Vegetation reduction/clearing detected across {round(veg_loss_pct * total_area_km2 / 100, 2)} km² ({veg_loss_pct}% of AOI)")
-    if veg_gain_pct > 1.0:
-        findings.append(f"Vegetative regrowth/greening observed across {round(veg_gain_pct * total_area_km2 / 100, 2)} km² ({veg_gain_pct}% of AOI)")
-    if abs(water_change_pct) > 0.8:
-        shift_word = "expansion" if water_change_pct > 0 else "retreat"
-        findings.append(f"Surface water {shift_word} identified across {abs(round(water_change_pct * total_area_km2 / 100, 2))} km² ({abs(water_change_pct)}% of AOI)")
-    if urban_pct > 0.8:
-        findings.append(f"Surface disturbance / built-up expansion identified across {round(urban_pct * total_area_km2 / 100, 2)} km² ({urban_pct}% of AOI)")
-        
-    if not findings:
-        findings.append("No major morphological disturbances detected between observation passes (stable surface envelope).")
+    if is_identical_pass:
+        findings.append("Both observation passes resolved to identical imagery or zero inter-temporal variance. Select distinct cloud-free target dates to measure surface change.")
+        confidence_pct = 0
+    else:
+        if veg_loss_pct > 1.0:
+            findings.append(f"Vegetation reduction/clearing detected across {round(veg_loss_pct * total_area_km2 / 100, 2)} km² ({veg_loss_pct}% of AOI)")
+        if veg_gain_pct > 1.0:
+            findings.append(f"Vegetative regrowth/greening observed across {round(veg_gain_pct * total_area_km2 / 100, 2)} km² ({veg_gain_pct}% of AOI)")
+        if abs(water_change_pct) > 0.8:
+            shift_word = "expansion" if water_change_pct > 0 else "retreat"
+            findings.append(f"Surface water {shift_word} identified across {abs(round(water_change_pct * total_area_km2 / 100, 2))} km² ({abs(water_change_pct)}% of AOI)")
+        if urban_pct > 0.8:
+            findings.append(f"Surface disturbance / built-up expansion identified across {round(urban_pct * total_area_km2 / 100, 2)} km² ({urban_pct}% of AOI)")
+            
+        if not findings:
+            findings.append("No major morphological disturbances detected between observation passes (stable surface envelope).")
+        confidence_pct = 92 if total_change_pct < 50 else 78
 
     summary = "; ".join(findings[:2])
 
     return {
-        "status": "success",
+        "status": "warning" if is_identical_pass else "success",
         "aoi_area_km2": round(total_area_km2, 2),
         "total_change_pct": total_change_pct,
         "changed_area_km2": changed_area_km2,
@@ -155,7 +164,7 @@ def analyze_changes(before_img, after_img, total_area_km2=100.0):
         },
         "summary": summary,
         "findings": findings,
-        "confidence_pct": 92 if total_change_pct < 50 else 78,
+        "confidence_pct": confidence_pct,
         "limitations": "Spectral proxy indices calculated from visible satellite bands. Meteorological illumination and cloud edge artifacts may contribute to residual variance."
     }, heatmap_img
 

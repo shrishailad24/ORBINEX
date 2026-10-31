@@ -117,7 +117,7 @@ export default function SatelliteComparePanel({
     defaultZoom: STRATEGIC_PRESETS[0].defaultZoom,
   });
 
-  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'High-Res' | 'NASA-GIBS'>('Sentinel-2');
+  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'Pléiades Neo' | 'SkySat' | 'High-Res' | 'NASA-GIBS'>('Sentinel-2');
   const [beforeDate, setBeforeDate] = useState(STRATEGIC_PRESETS[0].suggestedBeforeDate);
   const [afterDate, setAfterDate] = useState(STRATEGIC_PRESETS[0].suggestedAfterDate);
   const [maxCloudCover, setMaxCloudCover] = useState(20);
@@ -438,13 +438,17 @@ export default function SatelliteComparePanel({
     try {
       if (platform === 'High-Res') {
         const [minLng, minLat, maxLng, maxLat] = currentBbox;
-        const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
-        const proxiedUrl = `/api/satellite/asset?url=${encodeURIComponent(exportUrl)}`;
+        const cleanBefore = beforeDate.split('T')[0];
+        const cleanAfter = afterDate.split('T')[0];
+        const exportUrlBefore = `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanBefore}`;
+        const exportUrlAfter = `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanAfter}`;
+        const rawExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
+        
         const syntheticScene: SatelliteScene = {
           id: `highres-${Date.now()}`,
-          platform: 'Sentinel-2',
+          platform: 'High-Res',
           modality: 'optical',
-          collection: 'World_Imagery_HighRes',
+          collection: 'World_Imagery_Wayback_VHR',
           datetime: afterDate,
           cloudCover: 0,
           bbox: currentBbox,
@@ -454,9 +458,9 @@ export default function SatelliteComparePanel({
             [maxLng, minLat],
             [minLng, minLat],
           ],
-          thumbnailUrl: exportUrl,
-          visualUrl: exportUrl,
-          metadata: { resolutionMeters: 0.5 },
+          thumbnailUrl: rawExportUrl,
+          visualUrl: rawExportUrl,
+          metadata: { resolutionMeters: 0.5, instrument: 'WorldView / Airborne Ortho 0.5m' },
         };
         setComparison({
           locationName: activeLocation.name,
@@ -464,10 +468,18 @@ export default function SatelliteComparePanel({
           zoom: getRadiusZoom(surroundingRadiusKm),
           before: {
             targetDate: beforeDate,
-            matchedScene: { ...syntheticScene, id: 'highres-before', datetime: beforeDate },
-            tileUrl: undefined,
+            matchedScene: { ...syntheticScene, id: 'highres-before', datetime: beforeDate, thumbnailUrl: rawExportUrl },
+            tileUrl: exportUrlBefore,
           },
           after: {
+            targetDate: afterDate,
+            matchedScene: { ...syntheticScene, id: 'highres-after', datetime: afterDate, thumbnailUrl: rawExportUrl },
+            tileUrl: exportUrlAfter,
+          },
+        });
+        setLoading(false);
+        return;
+      }
             targetDate: afterDate,
             matchedScene: syntheticScene,
             tileUrl: undefined,
@@ -806,6 +818,39 @@ export default function SatelliteComparePanel({
                 <div className="text-cyan-400/90 text-[8px] font-mono">
                   Center: {activeLocation.lat.toFixed(4)}°, {activeLocation.lng.toFixed(4)}°
                 </div>
+                {drawnAOI.areaKm2 <= 0.1 && (
+                  <div className="p-2 rounded bg-black/90 border border-cyan-500/40 space-y-1.5 font-mono">
+                    <div className="flex items-center justify-between text-[#00E5FF] font-bold text-[8.5px] uppercase tracking-wider">
+                      <span>SMALL-AREA EVALUATOR (2,000 SQ FT BENCHMARK)</span>
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[7.5px]">
+                        MICRO PLOT
+                      </span>
+                    </div>
+                    <div className="text-slate-300 text-[8px] leading-tight">
+                      Selected Plot: <b>{Math.round(drawnAOI.areaKm2 * 10763910).toLocaleString()} sq ft</b> ({Math.round(drawnAOI.areaKm2 * 1e6).toLocaleString()} m²)
+                    </div>
+                    <div className="grid grid-cols-3 gap-1 pt-1 text-[7.5px] text-center">
+                      <div className="p-1 rounded bg-white/[0.03] border border-white/10">
+                        <div className="text-slate-400">Sentinel-2 (10m)</div>
+                        <div className="text-rose-400 font-bold">~{Math.max(1, Math.round((drawnAOI.areaKm2 * 1e6) / 100))} px</div>
+                        <div className="text-[6.5px] text-slate-500">Sub-pixel</div>
+                      </div>
+                      <div className="p-1 rounded bg-white/[0.03] border border-white/10">
+                        <div className="text-slate-400">Planet SkySat (50cm)</div>
+                        <div className="text-cyan-400 font-bold">~{Math.round((drawnAOI.areaKm2 * 1e6) / 0.25).toLocaleString()} px</div>
+                        <div className="text-[6.5px] text-slate-400">Visible</div>
+                      </div>
+                      <div className="p-1 rounded bg-white/[0.03] border border-cyan-500/30 bg-cyan-950/20">
+                        <div className="text-[#00E5FF]">Pléiades Neo (30cm)</div>
+                        <div className="text-emerald-400 font-bold">~{Math.round((drawnAOI.areaKm2 * 1e6) / 0.09).toLocaleString()} px</div>
+                        <div className="text-[6.5px] text-emerald-300/80">High Fidelity</div>
+                      </div>
+                    </div>
+                    <p className="text-[7.5px] text-amber-300/90 leading-tight pt-1">
+                      ⚠️ <b>Honest Sensor Limit:</b> A 2,000 sq ft plot is ~186 m² (~2 pixels on Sentinel-2). 10m open imagery cannot verify internal structural changes. Use <b>30cm Pléiades Neo</b> or <b>50cm SkySat</b> for structure and boundary-level analysis.
+                    </p>
+                  </div>
+                )}
                 <button
                   onClick={fetchComparison}
                   disabled={loading}
@@ -1106,12 +1151,13 @@ export default function SatelliteComparePanel({
               <span>Constellation / Sensor</span>
               <span className="text-[#00E5FF]">{platform}</span>
             </div>
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
               {([
                 { id: 'Sentinel-2', label: 'S2 Optical', badge: '10m' },
                 { id: 'Sentinel-1', label: 'S1 SAR', badge: 'Radar' },
                 { id: 'Landsat', label: 'Landsat', badge: '30m' },
-                { id: 'NASA-GIBS', label: 'GIBS', badge: 'Daily' },
+                { id: 'Pléiades Neo', label: 'P-NEO', badge: '30cm VHR' },
+                { id: 'SkySat', label: 'SkySat', badge: '50cm' },
                 { id: 'High-Res', label: 'High-Res', badge: 'Aerial' },
               ] as const).map((p) => (
                 <button
@@ -1131,8 +1177,36 @@ export default function SatelliteComparePanel({
             </div>
             {platform === 'High-Res' && (
               <p className="text-[7.5px] text-amber-300/80 leading-tight">
-                * Note: High-Res Aerial provides sub-meter reference imagery. For dual-date historical change detection and vegetation loss, use <b>S2 Optical (10m)</b> or <b>Landsat</b>.
+                * Note: High-Res Aerial provides sub-meter reference imagery. For dual-date historical change detection and vegetation loss, use <b>S2 Optical (10m)</b>, <b>Landsat</b>, or <b>Pléiades Neo</b>.
               </p>
+            )}
+            {platform === 'Pléiades Neo' && (
+              <div className="p-2 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[8px] space-y-1">
+                <div className="flex items-center justify-between text-[#00E5FF] font-bold">
+                  <span>AIRBUS PLÉIADES NEO · 30cm PAN / 1.2m MS</span>
+                  <span className="px-1 py-0.5 rounded bg-[#00E5FF]/20 text-[7px] border border-[#00E5FF]/40">VHR DISCOVERY</span>
+                </div>
+                <p className="text-slate-300 leading-tight">
+                  Highest resolution commercial European satellite constellation. Ideal for small-area visual analysis, building footprints, and site-level change.
+                </p>
+                <p className="text-slate-400 font-mono text-[7px]">
+                  Attribution: © Airbus DS [Pléiades Neo 30cm] · Metadata Discovery Active · Set AIRBUS_API_KEY for licensed raster COGs.
+                </p>
+              </div>
+            )}
+            {platform === 'SkySat' && (
+              <div className="p-2 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[8px] space-y-1">
+                <div className="flex items-center justify-between text-[#00E5FF] font-bold">
+                  <span>PLANET LABS SKYSAT · 50cm ORTHO RESOLUTION</span>
+                  <span className="px-1 py-0.5 rounded bg-[#00E5FF]/20 text-[7px] border border-[#00E5FF]/40">HIGH-RES DISCOVERY</span>
+                </div>
+                <p className="text-slate-300 leading-tight">
+                  Sub-meter commercial constellation providing high-frequency infrastructure, industrial facility, and building-scale monitoring.
+                </p>
+                <p className="text-slate-400 font-mono text-[7px]">
+                  Attribution: © Planet Labs PBC [SkySat 50cm] · Metadata Discovery Active · Set PLANET_API_KEY for licensed raster COGs.
+                </p>
+              </div>
             )}
           </div>
 
@@ -1441,7 +1515,19 @@ export default function SatelliteComparePanel({
                       </div>
                     </div>
                     <div className="text-[8px] text-slate-400 truncate pt-1 border-t border-white/5">
-                      Attribution: Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84
+                      Attribution: {
+                        activeTelemetry.platform === 'Pléiades Neo'
+                          ? '© Airbus Defence and Space / CNES (Pléiades Neo 30cm PAN / 1.2m MS)'
+                          : activeTelemetry.platform === 'SkySat'
+                            ? '© Planet Labs PBC (SkySat 50cm Ortho Resolution)'
+                            : activeTelemetry.platform === 'WorldView-3'
+                              ? '© Maxar Technologies (WorldView-3 31cm Native Resolution)'
+                              : activeTelemetry.platform === 'High-Res'
+                                ? '© Esri, Maxar, Earthstar Geographics, USDA, USGS (High-Res 0.5m/px)'
+                                : activeTelemetry.platform === 'Sentinel-1'
+                                  ? 'Contains modified Copernicus Sentinel-1 radar data [2024], processed by ORBINEX'
+                                  : 'Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84'
+                      }
                     </div>
 
                     {/* High-res asset links */}

@@ -67,7 +67,7 @@ const CATEGORIES = [
 ] as const;
 
 const LAYER_COLORS = [
-  '#D4AF37', // Gold (default)
+  '#00E5FF', // Gold (default)
   '#00E5FF', // Cyan
   '#FF6B6B', // Red
   '#00E676', // Green
@@ -191,18 +191,18 @@ export default function ArcGISPanel({
   return (
     <div className="flex flex-col gap-3 h-full">
       {/* ── Prominent Stats Header ───────────────────────────────── */}
-      <div className="flex items-center justify-between bg-[#D4AF37]/10 border border-[#D4AF37]/30 rounded-lg p-2.5">
+      <div className="flex items-center justify-between bg-[#00E5FF]/10 border border-[#00E5FF]/30 rounded-lg p-2.5">
         <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-[#D4AF37]" />
-          <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-[#D4AF37] uppercase">
+          <Database className="w-4 h-4 text-[#00E5FF]" />
+          <span className="text-[11px] font-mono font-bold tracking-[0.2em] text-[#00E5FF] uppercase">
             ArcGIS Intel
           </span>
         </div>
         <div className="text-right">
-          <div className="text-[10px] font-mono text-[#D4AF37]/80 uppercase tracking-widest">
+          <div className="text-[10px] font-mono text-[#00E5FF]/80 uppercase tracking-widest">
             {importedLayers.length} Layers Active
           </div>
-          <div className="text-[10px] font-mono font-bold text-[#D4AF37] tabular-nums">
+          <div className="text-[10px] font-mono font-bold text-[#00E5FF] tabular-nums">
             {totalFeatures.toLocaleString()} Features
           </div>
         </div>
@@ -389,12 +389,12 @@ export default function ArcGISPanel({
           }}
           onKeyDown={(e) => e.key === 'Enter' && runSearch(query)}
           placeholder="Search ArcGIS layers..."
-          className="w-full bg-black/60 border border-white/10 rounded-lg pl-8 pr-16 py-2.5 text-[10px] font-mono text-white placeholder:text-[var(--text-muted)]/40 focus:outline-none focus:border-[#D4AF37]/50 transition-colors"
+          className="w-full bg-black/60 border border-white/10 rounded-lg pl-8 pr-16 py-2.5 text-[10px] font-mono text-white placeholder:text-[var(--text-muted)]/40 focus:outline-none focus:border-[#00E5FF]/50 transition-colors"
         />
         <button
           onClick={() => runSearch(query)}
           disabled={searching || !query.trim()}
-          className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md text-[10px] font-mono font-bold tracking-widest uppercase disabled:opacity-30 transition-all bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] hover:bg-[#D4AF37]/20"
+          className="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-md text-[10px] font-mono font-bold tracking-widest uppercase disabled:opacity-30 transition-all bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] hover:bg-[#00E5FF]/20"
         >
           {searching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'SCAN'}
         </button>
@@ -408,7 +408,7 @@ export default function ArcGISPanel({
             onClick={() => handleCategory(cat)}
             className={`px-3 py-1.5 rounded-full text-[9px] font-mono tracking-[0.1em] uppercase transition-all border ${
               activeCategory === cat.label
-                ? 'bg-[#D4AF37]/20 border-[#D4AF37]/50 text-[#D4AF37] shadow-[0_0_12px_rgba(212,175,55,0.3)]'
+                ? 'bg-[#00E5FF]/20 border-[#00E5FF]/50 text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.3)]'
                 : 'bg-white/[0.03] border-white/[0.08] text-[var(--text-muted)] hover:bg-white/[0.06] hover:border-white/20'
             }`}
           >
@@ -484,7 +484,7 @@ export default function ArcGISPanel({
                   className={`group flex flex-col gap-1.5 p-2.5 rounded-lg border transition-all ${
                     isImported
                       ? 'border-[var(--alert-green)]/30 bg-[var(--alert-green)]/[0.05]'
-                      : 'border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.04] hover:border-[#D4AF37]/30'
+                      : 'border-white/[0.04] bg-white/[0.02] hover:bg-white/[0.04] hover:border-[#00E5FF]/30'
                   }`}
                 >
                   {/* Title row */}
@@ -492,7 +492,7 @@ export default function ArcGISPanel({
                     <div className="flex-1 min-w-0 flex items-center gap-2">
                       <div
                         className="p-1.5 rounded-md bg-black/40 border border-white/10"
-                        style={{ color: importedLayer?.color || '#D4AF37' }}
+                        style={{ color: importedLayer?.color || '#00E5FF' }}
                       >
                         {getGeometryIcon(result.title, result.tags)}
                       </div>
@@ -504,7 +504,7 @@ export default function ArcGISPanel({
                           <span className="text-[9px] font-mono text-[var(--text-muted)] truncate">
                             {result.owner}
                           </span>
-                          <span className="text-[9px] font-mono text-[#D4AF37]/70 tabular-nums flex items-center gap-0.5">
+                          <span className="text-[9px] font-mono text-[#00E5FF]/70 tabular-nums flex items-center gap-0.5">
                             <Eye className="w-2.5 h-2.5" />
                             {result.numViews?.toLocaleString() ?? 0}
                           </span>
@@ -530,7 +530,7 @@ export default function ArcGISPanel({
                       <button
                         onClick={() => handleImport(result)}
                         disabled={isImporting || !result.url}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-mono font-bold tracking-widest uppercase transition-all disabled:opacity-40 bg-[#D4AF37]/10 border border-[#D4AF37]/40 text-[#D4AF37] hover:bg-[#D4AF37]/20 hover:shadow-[0_0_12px_rgba(212,175,55,0.2)] active:scale-95"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[10px] font-mono font-bold tracking-widest uppercase transition-all disabled:opacity-40 bg-[#00E5FF]/10 border border-[#00E5FF]/40 text-[#00E5FF] hover:bg-[#00E5FF]/20 hover:shadow-[0_0_12px_rgba(0,229,255,0.2)] active:scale-95"
                       >
                         {isImporting ? (
                           <>
@@ -560,7 +560,7 @@ export default function ArcGISPanel({
                       {result.tags.slice(0, 4).map((tag) => (
                         <span
                           key={tag}
-                          className="px-1.5 py-0.5 rounded-full text-[9px] font-mono tracking-wide text-[#D4AF37]/80 bg-[#D4AF37]/10 border border-[#D4AF37]/20"
+                          className="px-1.5 py-0.5 rounded-full text-[9px] font-mono tracking-wide text-[#00E5FF]/80 bg-[#00E5FF]/10 border border-[#00E5FF]/20"
                         >
                           {tag}
                         </span>
@@ -582,7 +582,7 @@ export default function ArcGISPanel({
           <div className="flex flex-col items-center justify-center py-12 gap-3 opacity-60">
             <div className="relative">
               <Database className="w-8 h-8 text-[var(--text-muted)] opacity-50" />
-              <Search className="w-4 h-4 text-[#D4AF37] absolute -bottom-1 -right-1" />
+              <Search className="w-4 h-4 text-[#00E5FF] absolute -bottom-1 -right-1" />
             </div>
             <div className="flex flex-col items-center gap-1.5 text-center">
               <span className="text-[10px] font-mono font-bold text-white tracking-wide">
@@ -599,8 +599,8 @@ export default function ArcGISPanel({
       {/* ── Status Bar ────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] shrink-0">
         <div className="flex items-center gap-1.5">
-          <Radio className="w-3 h-3 text-[#D4AF37]" />
-          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-[#D4AF37]/80">
+          <Radio className="w-3 h-3 text-[#00E5FF]" />
+          <span className="text-[9px] font-mono tracking-[0.2em] uppercase text-[#00E5FF]/80">
             ArcGIS PUBLIC
           </span>
         </div>
@@ -609,11 +609,11 @@ export default function ArcGISPanel({
             Connection Health
           </span>
           <div className="relative flex items-center justify-center">
-            <Wifi className={`w-3 h-3 ${searching ? 'text-[#D4AF37]' : 'text-[var(--alert-green)]'}`} />
+            <Wifi className={`w-3 h-3 ${searching ? 'text-[#00E5FF]' : 'text-[var(--alert-green)]'}`} />
             <span
               className={`absolute top-0 right-0 w-1.5 h-1.5 rounded-full ${
                 searching
-                  ? 'bg-[#D4AF37] animate-ping'
+                  ? 'bg-[#00E5FF] animate-ping'
                   : 'bg-[var(--alert-green)] animate-pulse'
               }`}
             />

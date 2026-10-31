@@ -8,20 +8,20 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
-  --gold-rgb: 212, 175, 55;
+  --gold-rgb: 0, 229, 255;
   --cyan-rgb: 0, 229, 255;
   /* ── Core Palette ── */
   --bg-void: #020612;
   --bg-primary: #252535;
   --bg-secondary: #1F1F2C;
   --bg-tertiary: #191924;
-  --bg-panel: rgba(45, 45, 62, 0.88);
-  --bg-panel-solid: #2D2D3E;
+  --bg-panel: rgba(8, 14, 26, 0.94);
+  --bg-panel-solid: #0A101D;
 
   /* ── Gold Accent (Eye of Horus) ── */
-  --gold-primary: #D4AF37;
-  --gold-light: #F0D060;
-  --gold-dim: #8B7325;
+  --gold-primary: #00E5FF;
+  --gold-light: #67E8F9;
+  --gold-dim: #0891B2;
   --gold-glow: rgba(var(--gold-rgb), 0.3);
 
   /* ── Cyan Intel Stream ── */
@@ -69,7 +69,7 @@
   --text-secondary: #9B978E;
   --text-muted: #5C5A54;
   --text-heading: #F5F0E0;
-  --text-gold: #D4AF37;
+  --text-gold: #00E5FF;
   --text-cyan: #00E5FF;
 
   /* ── Scrollbar ── */
