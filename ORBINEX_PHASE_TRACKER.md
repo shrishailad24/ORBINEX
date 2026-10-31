@@ -75,7 +75,7 @@ flowchart TD
   - Complete geospatial metadata sidecar preservation (EPSG:4326 CRS, resolution, cloud cover, sensor modality, and ESA Copernicus attribution).
   - Dedicated API endpoints: `/api/satellite/search`, `/api/satellite/process`, `/api/satellite/compare`, and `/api/satellite/asset`.
   - Frontend interactive Satellite Intelligence panel (`SatelliteComparePanel.tsx`) with Indian strategic presets (Dhubri, Bengaluru, Western Ghats, Prayagraj), global location search, cloud filter, contrast stretch toggle, and MapLibre overlay integration.
-  - 31 automated satellite unit tests passing (12 in `satellite.test.ts`, 16 in `satellite-layer.test.ts`, 3 in `satellite-programs.test.ts`).
+  - 38 automated satellite unit tests passing (12 in `satellite.test.ts`, 16 in `satellite-layer.test.ts`, 3 in `satellite-programs.test.ts`, 6 in `phase1-audit.test.ts`, 1 in `report.test.ts`).
 - **Acceptance Criteria Verified:**
   - [x] Real satellite observations retrieved for New York, London, Tokyo, Amazon Rainforest, Sahara Desert, Bengaluru, and decimal coordinates.
   - [x] Sentinel-1 SAR radar imagery verified globally (`sentinel-1-grd`).
