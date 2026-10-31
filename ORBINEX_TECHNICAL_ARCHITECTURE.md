@@ -1,82 +1,86 @@
 # ORBINEX — Technical Architecture Documentation
-**Enterprise Geospatial Intelligence & Scalable Big Data Architecture**
+**Enterprise Multi-Resolution Geospatial Intelligence & Scalable Big Data Architecture**
 
-This document describes the architectural layout, data flow, rendering pipelines, component hierarchy, and the scalable **Big Data ecosystem** powering the ORBINEX platform.
+This document describes the architectural layout, data flow, rendering pipelines, component hierarchy, multi-resolution satellite adapters, and the scalable **Big Data and AI ecosystem** powering the ORBINEX platform.
 
 ---
 
 ## 1. System Architecture Overview
 
-ORBINEX implements a hybrid, decoupled architecture:
-* **Presentation Tier:** Next.js 16 (App Router), React 19, and MapLibre GL v6 WebGL/WebGPU rendering engine.
+ORBINEX implements a hybrid, decoupled architecture across 6 core tiers:
+* **Presentation Tier:** Next.js 16 (App Router), React 19, and MapLibre GL v6 WebGL/WebGPU rendering engine with Split Comparison Slider and Drawing AOI tools.
 * **API Gateway & Core Server:** Next.js Node.js server handling 87 intelligence routes, in-flight deduplication, and SWR caching.
-* **Geospatial Processing & AI Worker:** Python FastAPI service executing raster georeferencing, multispectral processing, and deep learning inference.
+* **Multi-Resolution Satellite Ingestion Tier:** Unified `SatelliteProviderAdapter` coordinating Open STAC (Sentinel-1/2, Landsat-8/9, HLS) and Commercial VHR APIs (Airbus Pléiades Neo 30cm, Planet SkySat 50cm, Maxar WorldView-3 30cm).
+* **Geospatial Processing & AI Worker:** Python worker executing raster georeferencing, affine projection, JPEG-2000 transcoding, and deep learning inference with pretrained Earth foundation models.
 * **Distributed Big Data Engine:** Apache Spark & PySpark for planetary-scale raster computation, Apache Kafka for event-driven telemetry, and Hadoop HDFS for multi-temporal satellite archives.
 * **Geospatial Data Store:** PostgreSQL with PostGIS extension for spatial vector queries and indexing.
 
 ```mermaid
 flowchart TD
     subgraph ClientTier ["1. Presentation Tier (Client / WebGL)"]
-        UI["ORBINEX HUD & Navigation Drawer"]
+        UI["ORBINEX HUD & Navigation Drawers"]
         MapEngine["MapLibre GL v6 Engine (3D Globe / 2D GPU)"]
-        VisionWorker["Camera Vision Worker (ONNX runtime)"]
-        Deduplicator["Client-Side In-Flight Deduplicator"]
+        AOIToolbar["Draw-Anywhere AOI (Rectangle & Polygon)"]
+        SplitSlider["Synchronized Dual-Temporal Split Slider"]
+        AssistantUI["ORBINEX AI Assistant (Voice & Chat UI)"]
     end
 
     subgraph GatewayTier ["2. Application Gateway Tier (Next.js / Node.js)"]
-        APIRouter["API Route Handlers (87 Feeds + Satellite Proxy)"]
+        APIRouter["API Route Handlers (87 Feeds + Satellite Endpoints)"]
         SWRStore["In-Memory SWR Source Cache"]
         NominatimGateway["Nominatim Rate-Limited Gateway"]
         LocalDiskCache["Disk Snapshot Cache (.cache/)"]
+        RAGService["RAG Knowledge Engine & Vector Store"]
     end
 
-    subgraph ServiceTier ["3. Geospatial & AI Service Tier (Python / FastAPI)"]
-        FastAPIService["ORBINEX Geospatial Worker (FastAPI)"]
+    subgraph SatelliteIngestTier ["3. Multi-Resolution Satellite Ingestion Tier"]
+        OpenSTAC["Open STAC Gateway (Sentinel-1, Sentinel-2, Landsat 8/9, HLS)"]
+        CommercialVHR["Commercial VHR Gateway (Pléiades Neo 30cm, SkySat 50cm, WorldView 30cm)"]
+        ResolutionEvaluator["Resolution & Plot Scale Evaluator (2,000 sq ft logic)"]
+    end
+
+    subgraph ServiceTier ["4. Geospatial & AI Service Tier (Python)"]
+        FastAPIService["ORBINEX Geospatial Worker"]
         RasterEngine["Rasterio / GDAL / OpenCV / NumPy"]
-        AIEngine["PyTorch (YOLOv8 + SAHI Ingestion)"]
-        VectorEngine["GeoPandas & Shapely"]
+        FoundationModel["Pretrained Earth Foundation Model (Prithvi-EO-2.0 / TerraMind)"]
+        SpecialistModels["Specialist AI Models: Forest · Building · Water · Land · Change"]
+        PDFGenerator["PDF Intelligence Report Engine"]
     end
 
-    subgraph BigDataTier ["4. Distributed Big Data & Streaming Tier"]
+    subgraph BigDataTier ["5. Distributed Big Data & Streaming Tier"]
         Kafka["Apache Kafka (Telemetry & Alert Event Bus)"]
         SparkCluster["Apache Spark / PySpark (Distributed Raster Analytics)"]
         HDFSStore["Hadoop HDFS (Historical Imagery Lakehouse)"]
     end
 
-    subgraph StorageTier ["5. Spatial Persistence Tier"]
+    subgraph StorageTier ["6. Spatial Persistence Tier"]
         PostGIS[("PostgreSQL + PostGIS (Spatial Database)")]
         DiskCache[("Local Object / Tile Cache")]
     end
 
-    subgraph ExternalFeeds ["6. External Upstream Intelligence Providers"]
-        OpenSky["OpenSky Network (Aviation ADS-B)"]
-        USGS["USGS (Earthquakes)"]
-        FIRMS["NASA FIRMS (Fires)"]
-        Celestrak["Celestrak TLEs (Satellites)"]
-        Copernicus["ESA Copernicus / Element84 (STAC Sentinel-1/2)"]
-        GIBS["NASA GIBS / ESRI Wayback"]
-    end
-
     %% Client connections
-    UI --> Deduplicator
-    Deduplicator --> MapEngine
-    Deduplicator --> APIRouter
-    MapEngine --> VisionWorker
+    UI --> APIRouter
+    AOIToolbar --> MapEngine
+    MapEngine --> SplitSlider
+    AssistantUI --> RAGService
 
-    %% Gateway connections
+    %% Gateway & Satellite Ingestion
+    APIRouter --> ResolutionEvaluator
+    ResolutionEvaluator --> OpenSTAC
+    ResolutionEvaluator --> CommercialVHR
+    OpenSTAC --> FastAPIService
+    CommercialVHR --> FastAPIService
     APIRouter <--> SWRStore
-    APIRouter <--> NominatimGateway
     APIRouter <--> LocalDiskCache
-    APIRouter --> ExternalFeeds
 
-    %% Integration with Geospatial Service
-    APIRouter <--> FastAPIService
+    %% Service Tier & AI
     FastAPIService --> RasterEngine
-    FastAPIService --> AIEngine
-    FastAPIService --> VectorEngine
-    FastAPIService <--> PostGIS
+    RasterEngine --> FoundationModel
+    FoundationModel --> SpecialistModels
+    SpecialistModels --> PDFGenerator
+    SpecialistModels <--> PostGIS
 
-    %% Big Data Pipelines (Event-Driven & Batch)
+    %% Big Data Pipelines
     FastAPIService --> Kafka
     Kafka --> APIRouter
     Kafka --> SparkCluster
@@ -86,62 +90,50 @@ flowchart TD
 
 ---
 
-## 2. Technology Stack & Role Matrix
+## 2. Multi-Resolution Hierarchy & Analytical Limits
 
-To ensure architectural integrity, each technology in the Big Data ecosystem has a dedicated, non-overlapping responsibility:
+ORBINEX enforces clear physical distinctions between open-access satellite data and commercial sub-meter imagery:
 
-| Component | Technology | Primary Function | Roadmap Phase |
-| :--- | :--- | :--- | :---: |
-| **Frontend HUD** | **Next.js 16 + React 19** | User interface, telemetry display, interactive drawers, and controls. | Phase 0–5 |
-| **Map Engine** | **MapLibre GL v6** | GPU-accelerated 3D globe and 2D map visualization, raster/vector overlays. | Phase 0–5 |
-| **Raster Engine** | **Rasterio, GDAL, OpenCV, NumPy** | Georeferencing, affine projection, band stacking (RGB/NIR), contrast stretching. | Phase 1–3 |
-| **Microservice** | **Python & FastAPI** | High-throughput asynchronous service for heavy raster processing and tile generation. | Phase 2–3 |
-| **Satellite AI** | **PyTorch (YOLOv8 + SAHI)** | Deep learning inference for settlement detection, building footprinting, canopy loss. | Phase 3 |
-| **Spatial Database** | **PostgreSQL + PostGIS** | Spatial indexing (`R-Tree`), polygonal AOI storage, geofencing, alert persistence. | Phase 3–4 |
-| **Vector Analytics**| **GeoPandas & Shapely** | Vector geometry operations, boundary intersections, and GeoJSON report compilation. | Phase 3–4 |
-| **Event Streaming** | **Apache Kafka** | Real-time event bus for satellite pass alerts, detection notifications, and feed ingest. | Phase 4 |
-| **Batch Analytics** | **Apache Spark & PySpark**| Distributed tile mosaicking, multi-temporal NDVI change analysis over large states. | Phase 4–5 |
-| **Distributed Lake**| **Hadoop HDFS** | Long-term distributed storage for multi-terabyte raw satellite archives. | Phase 4–5 |
-| **Containerization**| **Docker & Compose** | Containerized orchestration of Next.js, FastAPI, PostGIS, Kafka, and Spark workers. | Phase 5 |
+| Sensor Class | Constellation | GSD | Approx Pixels on 2,000 sq ft ($186\text{ m}^2$) | Primary Use Case | Honest System Policy |
+| :--- | :--- | :---: | :---: | :--- | :--- |
+| **Tier 1: Global Open** | Sentinel-2 L2A | 10 m | **~2 pixels** | Regional vegetation ($NDVI$), water extent, broad land cover | System warns user: *Plot is too small for internal change verification.* |
+| **Tier 1: All-Weather Radar** | Sentinel-1 GRD | 10 m | **~2 pixels** | Cloud-penetrating flood detection, surface backscatter changes | Radar speckle prevents plot-level inspection. |
+| **Tier 1: Historical Baseline**| Landsat 8/9 | 30 m | **~0.2 pixels** | Decadal climate monitoring, broad regional change baselines | Sub-pixel plot. |
+| **Tier 2: High-Resolution** | Planet SkySat | 50 cm | **~744 pixels** | Infrastructure detection, building boundaries, parking lots | Commercial archive / tasking required. |
+| **Tier 3: Very High Res (VHR)**| Airbus Pléiades Neo| 30 cm PAN | **~2,067 pixels** | Small-area visual monitoring, building footprints, site excavation | Explicit distinction: 30cm PAN vs 1.2m multispectral color. |
+| **Tier 4: Premium VHR** | Maxar WorldView-3 | 31 cm PAN | **~1,939 pixels** | Sub-meter structural inspection, high-accuracy defense GIS | Premium licensing. |
 
 ---
 
-## 3. Data Processing Pathways
+## 3. Specialist AI Models & Foundation Architecture
 
-The architecture separates data operations into three distinct latency tiers to avoid introducing heavy Big Data overhead where lightweight solutions suffice:
+ORBINEX does **not** train foundation models from scratch. It employs a **Hybrid Pretrained + Specialist Model Architecture**:
 
 ```mermaid
 flowchart LR
-    subgraph PathA ["Interactive Real-Time Path (< 100ms)"]
-        ReqA["User Pan / Zoom / Query"] --> NextAPI["Next.js Route Handler"]
-        NextAPI --> SWR["In-Memory SWR Cache"]
-        SWR --> MapLibre["MapLibre WebGL Viewport"]
-    end
+    DualRasters["Dual-Temporal Aligned Rasters (t1, t2)"] --> Encoder["Earth Observation Foundation Encoder<br/>(Prithvi-EO-2.0 / TerraMind)"]
+    
+    Encoder --> HeadForest["Forest AI Head<br/>(Deforestation, Canopy Delta)"]
+    Encoder --> HeadBuilding["Building AI Head<br/>(Footprint Extraction, Settlement)"]
+    Encoder --> HeadWater["Water AI Head<br/>(Flood Inundation, Waterbody Delta)"]
+    Encoder --> HeadLand["Land AI Head<br/>(Urban Sprawl, Bare Soil)"]
+    Encoder --> HeadChange["General Change Head<br/>(Siamese U-Net Differencing)"]
 
-    subgraph PathB ["Geospatial AI & Processing Path (500ms - 3s)"]
-        ReqB["AOI Satellite Analysis"] --> FastAPICall["FastAPI Microservice"]
-        FastAPICall --> RasterProc["Rasterio / OpenCV Processing"]
-        RasterProc --> TorchInf["PyTorch / SAHI Model"]
-        TorchInf --> PostGISPersist["PostGIS Geometry Index"]
-        PostGISPersist --> GeoJSONOut["GeoJSON Bounding Boxes to HUD"]
-    end
+    HeadForest --> Integrator["Unified Prediction Normalizer & Confidence Scorer"]
+    HeadBuilding --> Integrator
+    HeadWater --> Integrator
+    HeadLand --> Integrator
+    HeadChange --> Integrator
 
-    subgraph PathC ["Distributed Big Data Batch Path (Minutes - Hours)"]
-        STACIngest["STAC Observation Ingestion"] --> KafkaQueue["Kafka Event Topic"]
-        KafkaQueue --> SparkJob["PySpark Distributed Pipeline"]
-        SparkJob <--> HDFSArchive["HDFS Raw Imagery Lake"]
-        SparkJob --> ChangeDetect["Historical Delta & NDVI Matrix"]
-        ChangeDetect --> PostGISAlert["PostGIS Alert Table & LiveAlerts"]
-    end
+    Integrator --> OutputGeoJSON["Georeferenced GeoJSON Polygons + Uncertainty Metric"]
 ```
 
-### Architectural Justification Rules:
-1. **Lightweight First:** Single scene visual lookups, catalog STAC searches, and localized map zooms use the lightweight Next.js $\leftrightarrow$ SWR pathway without waking the Big Data cluster.
-2. **FastAPI for Heavy Geometry:** When image manipulation (clipping, contrast stretching, PyTorch model execution) is required, the request delegates to the Python FastAPI worker.
-3. **Kafka & Spark for Scale Only:** Apache Kafka and Apache Spark are triggered strictly for:
-   - Automated ingestion of entire satellite passes across thousands of square kilometers.
-   - Batch temporal diffing across 5+ years of historical imagery.
-   - Multi-node distributed change analytics.
+### Specialist Model Focus Areas:
+1. **Forest Intelligence Model:** Trained on BioMassters / HLS Burn Scars; outputs deforestation probability, canopy reduction percentage, and burn scars.
+2. **Building Intelligence Model:** Fine-tuned on LEVIR-CD and S2Looking for structural footprint emergence, construction grading, and settlement boundaries.
+3. **Water Intelligence Model:** Fine-tuned on Sen1Floods11; combines Sentinel-1 SAR and optical bands to delineate floodlines and riverbank recession.
+4. **Land Intelligence Model:** Based on ESA WorldCover; monitors agricultural conversions and urban expansion.
+5. **General Change Detection Model:** Uses Siamese difference architectures to isolate anomalous geometric and radiometric variances with confidence scores.
 
 ---
 
@@ -149,15 +141,15 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    L1["L1: Browser Memory (React Ref In-Flight Deduplication)"] --> L2["L2: Node.js In-Memory SWR Cache (60s - 30m TTL)"]
+    L1["L1: Browser Memory (React In-Flight Deduplication)"] --> L2["L2: Node.js In-Memory SWR Cache (60s - 30m TTL)"]
     L2 --> L3["L3: Fast Local Disk Cache (.cache/satellite-processed/)"]
     L3 --> L4["L4: Spatial Relational Store (PostgreSQL / PostGIS)"]
     L4 --> L5["L5: Distributed Lakehouse (Hadoop HDFS / Cloud Object Storage)"]
 ```
 
-1. **L1 (Browser Memory):** In-flight deduplication prevents duplicate network requests during rapid camera movement or component re-renders.
-2. **L2 (Node.js SWR):** High-speed in-memory store for upstream feeds (weather, news, flight decimation, satellite TLEs).
-3. **L3 (Local SSD Cache):** Deterministic SHA-256 hashed PNGs and metadata sidecars generated by the raster processing engine.
+1. **L1 (Browser Memory):** In-flight deduplication prevents redundant network calls during rapid pan/zoom interactions.
+2. **L2 (Node.js SWR):** High-speed in-memory cache for live intelligence feeds (news, earthquakes, weather, flights).
+3. **L3 (Local Disk Cache):** SHA-256 hashed `.png` rasters, transcoded JPEG-2000 assets, and `.meta.json` telemetry sidecars.
 4. **L4 (PostgreSQL + PostGIS):** Persists monitored AOIs, historical detection logs, alert histories, and geospatial spatial indexes (`GIST`).
 5. **L5 (Hadoop HDFS):** Scalable, distributed cluster storage for high-volume raw satellite archives (Sentinel-1/2 L1C/L2A COGs, Landsat-8/9 archives).
 
@@ -165,7 +157,7 @@ flowchart TD
 
 ## 5. Security & Isolation Boundaries
 
-1. **Air-Gapped Processing Isolation:** The Python FastAPI raster and PyTorch engine operates behind internal network boundaries; public clients interact exclusively with Next.js API routes.
-2. **SSRF Guard:** All satellite asset ingestion is strictly verified against an approved host allowlist (`isAllowedSatelliteUrl`), blocking internal loopback IPs, cloud metadata (`169.254.169.254`), and arbitrary endpoints.
-3. **PostGIS Geofencing:** Coordinate queries are sanitized and clamped to valid WGS84 bounds before execution in spatial SQL queries.
-4. **Responsible AI Boundary:** The PyTorch detection pipeline is restricted strictly to observable physical geographical indicators (structures, roads, water bodies, tree canopy), rejecting demographic classification.
+1. **SSRF Guard:** All satellite and external URLs are strictly validated against an approved hostname allowlist (`isAllowedSatelliteUrl`), blocking private RFC 1918 IPs, cloud metadata endpoints (`169.254.169.254`), and loopback addresses.
+2. **Deterministic Geofencing:** Coordinate queries are sanitized and clamped to valid WGS84 bounds before execution.
+3. **Responsible AI Boundary:** Satellite AI models identify physical objects only (structures, roads, water, vegetation canopy); demographic, nationality, or immigration profiling is structurally blocked.
+4. **No-Hallucination Assistant Rule:** The RAG-powered AI assistant answers queries strictly from verified satellite metadata, bounding coordinates, and analysis outputs. It never invents observations or dates.

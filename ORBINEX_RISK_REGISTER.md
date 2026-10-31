@@ -1,42 +1,48 @@
 # ORBINEX — Project Risk Register
-
-**Platform:** ORBINEX Global Geospatial Intelligence Platform  
-**Document Version:** 1.0.0 (Phase 0 Baseline)  
+**Platform:** ORBINEX Global Satellite Intelligence Platform  
+**Document Version:** 2.0.0 (Multi-Resolution & VHR Baseline)  
 **Date:** October 31, 2026  
 **Status:** Active Governance Document  
 
 ---
 
-## 1. Risk Matrix Overview
+## 1. Comprehensive Risk Matrix
 
 | Risk ID | Category | Description | Likelihood | Impact | Severity | Mitigation Strategy | Owner |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **RSK-01** | **Satellite Data** | Optical imagery unavailable via existing Sentinel-1 SAR catalog | High | High | **CRITICAL** | Implement multispectral Sentinel-2 L2A / Landsat-8 and Planet API connectors in Phase 1 & 2. | Satellite Lead |
-| **RSK-02** | **Security / SSRF** | `/api/osint/portscan` and `/api/cctv/proxy` allow user-controlled network targets | Medium | High | **HIGH** | Strict private IP validation (already rejecting RFC 1918), add rate limiting and Analyst-tier API token authentication. | Security Lead |
-| **RSK-03** | **API Quota** | Gemini AI endpoints (`/api/ai/*`) are unauthenticated and could exhaust token quota | High | Medium | **HIGH** | Enforce per-session rate limits, in-memory briefing caching, and require user API key or session token. | Backend Lead |
-| **RSK-04** | **Upstream Outage** | External providers (OpenSky, USGS, FIRMS, NWS) experience intermittent downtime | High | Medium | **MEDIUM** | Stale-While-Revalidate (SWR) cache pattern already implemented; ensures cached data is served seamlessly during outages. | Architecture |
-| **RSK-05** | **Rate Limiting** | Nominatim geocoding bans due to request bursts from multiple clients | Medium | High | **HIGH** | Nominatim gateway in `src/lib/nominatim.ts` throttles to 2s gap, rounds coordinates to 0.1°, and serves 10k LRU cache. | Backend Lead |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- |
+| **RSK-01** | **Satellite Data** | Optical imagery cloudy or unavailable via Sentinel-2 | High | High | **CRITICAL** | Dual-sensor fallback: automatic switch to Sentinel-1 SAR (all-weather radar) and Landsat 8/9. | Satellite Lead |
+| **RSK-02** | **Security / SSRF** | User-supplied satellite asset URLs target private networks or cloud metadata | Medium | High | **HIGH** | Strict hostname allowlist (`isAllowedSatelliteUrl`), blocking RFC 1918 private IPs and `169.254.169.254`. | Security Lead |
+| **RSK-03** | **API Quota** | Gemini / AI model endpoints exhausted by unauthenticated traffic | High | Medium | **HIGH** | Session-level rate limiting, in-memory SWR caching, and optional user-provided API key. | Backend Lead |
+| **RSK-04** | **Upstream Outage**| Element84 STAC, Copernicus, or USGS experiencing downtime | Medium | Medium | **MEDIUM** | Stale-While-Revalidate (SWR) cache pattern and local disk fallback (`.cache/satellite-processed/`). | Architecture |
+| **RSK-05** | **Rate Limiting** | Nominatim geocoding throttling or bans | Medium | High | **HIGH** | Nominatim gateway in `src/lib/nominatim.ts` throttles to 2s gap, rounds coordinates, and serves 10k LRU cache. | Backend Lead |
 | **RSK-06** | **Data Loss** | Accidental overwrite of `.cache/cctv-catalog.json` or `public/data/` | Low | High | **HIGH** | Mark datasets as immutable in Phase guidelines; maintain baseline commits in git. | DevOps |
 | **RSK-07** | **Browser Memory** | Excessive GeoJSON layers or concurrent video decodes cause browser tab crash | Medium | Medium | **MEDIUM** | Commercial flights decimated by 10x; CCTV video decodes capped at max 4 concurrent tiles (`CctvPreviews.tsx`). | Frontend Lead |
 | **RSK-08** | **Legal / Ethics** | AI misclassifying legal settlements or determining nationality/immigration status | Medium | Critical | **CRITICAL** | Clear project boundary: AI detects measurable *physical geographical changes* only (structures, canopy, roads); no demographic determinations. | Product Lead |
+| **RSK-09** | **VHR Licensing** | Uncontrolled commercial tasking or archive downloads causing budget runaway | High | High | **CRITICAL** | Read-only archive catalogue search by default; explicit confirmation and pricing display before any commercial asset order. | Product Lead |
+| **RSK-10** | **Archive Scarcity**| Commercial 30cm imagery unavailable for an arbitrary historical date on a 2,000 sq ft plot | High | Medium | **HIGH** | Enforce **Honest Communication Rule**: Display clear warning when 30cm imagery does not exist; never upscale 10m data to fake high-res. | Satellite Lead |
+| **RSK-11** | **Resolution Confusion**| User conflates 30cm panchromatic (greyscale) with 1.2m multispectral color | High | Low | **MEDIUM** | Clear UI telemetry labeling: explicitly distinguish PAN geometric detail from multispectral spectral bands. | UI/UX Lead |
+| **RSK-12** | **Hardware Training**| Attempting foundation model training on 16GB RAM / CPU-only development machine | High | High | **HIGH** | Restrict local environment to development, preprocessing, and CPU inference; provision cloud GPU nodes for model training. | AI Lead |
 
 ---
 
 ## 2. Risk Mitigation Protocols
 
 ### Protocol 1: Satellite Change Detection Boundary (RSK-08)
-- The AI settlement detection engine (Phase 1) is strictly trained to identify physical objects:
+- The AI settlement detection engine is strictly trained to identify physical objects:
   - Structures (roof footprints, temporary shelters, permanent masonry).
   - Forest and vegetation cover canopy changes ($NDVI$ delta).
   - Roads, cleared paths, and riverbank morphology changes.
 - Automated alert text must refer strictly to physical indicators (e.g. *"New structures detected at Lat X, Lng Y between Date A and Date B"*), without speculation on resident nationality or legal status.
 
-### Protocol 2: Upstream Resiliency & Graceful Degradation (RSK-04)
-- Every external API integration must be wrapped with:
-  1. Strict `AbortSignal.timeout` (maximum 3.5s for real-time layers).
-  2. SWR memory caching with `stale-while-revalidate` headers.
-  3. Graceful fallback payload so a single downstream failure never renders an empty dashboard.
+### Protocol 2: Commercial VHR Purchase & Tasking Guard (RSK-09)
+- All commercial satellite integrations (Airbus OneAtlas, Planet Orders, Maxar ARD) operate strictly in **Metadata Discovery Mode** by default.
+- Paid raster pixel downloads or satellite tasking orders require multi-step analyst authorization and explicit budget checks.
 
-### Protocol 3: Large Dataset Ingestion Safeguards (RSK-06)
-- The 17,000+ camera catalog (`.cache/cctv-catalog.json`) and submarine cables geometry (`public/data/submarine-cables.json`) are critical production assets.
-- In-memory updates must be atomic (`fs.writeFile` to temp file before atomic rename) to prevent file truncation during unexpected process exits.
+### Protocol 3: Honest Resolution & Degraded State Notice (RSK-10 & RSK-11)
+- If a user selects an area smaller than $50,000\text{ m}^2$ (e.g. 2,000 sq ft) and 30cm VHR imagery is unavailable, the UI must display:
+  > *"30 cm VHR archive imagery is not licensed or unavailable for this location on the requested date. Displaying Sentinel-2 (10 m/px) open imagery. Plot resolution is limited to ~2 pixels; internal plot-level change cannot be verified."*
+- 10m open imagery must never be artificially supersampled to simulate sub-meter detail.
+
+### Protocol 4: External Hardware Training Governance (RSK-12)
+- Local development machines (16GB RAM, CPU-only) are governed strictly for frontend development, STAC querying, raster clipping, and ONNX/SAHI CPU inference.
+- Earth-observation foundation model fine-tuning (Prithvi-EO-2.0, TerraMind) must be executed on cloud GPU instances with at least 32–64GB RAM and 24–80GB VRAM (e.g. NVIDIA A100/H100).
