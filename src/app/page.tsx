@@ -2059,38 +2059,7 @@ export default function Dashboard() {
           <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none">SEARCH</span>
         </div>
 
-        {/* Separator */}
-        <div className="w-4 h-px bg-white/10 mx-auto" />
 
-        {/* ── ARCGIS INTEL ── */}
-        <div className="relative group">
-          <button onClick={() => togglePopup('arcgis')} className={`relative w-8 h-8 rounded-full flex items-center justify-center transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-white/50 ${showArcGIS ? 'bg-[var(--gold-primary)]/20' : 'hover:bg-white/10'}`} title="ArcGIS — search & import geospatial intel layers" aria-label="ArcGIS" aria-expanded={showArcGIS}>
-            <Database className={`w-4 h-4 ${showArcGIS ? 'text-[var(--gold-primary)]' : 'text-white/60'}`} />
-            {showArcGIS && (
-              <span
-                aria-hidden="true"
-                className="absolute -right-1 top-1/2 -translate-y-1/2 h-4 w-[2px] rounded-full bg-current text-[var(--gold-primary)]"
-              />
-            )}
-            {arcgisLayers.length > 0 && <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-[var(--gold-primary)] text-black text-[9px] font-mono font-bold leading-none px-0.5">{arcgisLayers.length}</span>}
-          </button>
-          <span className="absolute right-11 top-1/2 -translate-y-1/2 px-2 py-1 text-[9px] font-mono tracking-wider text-white/80 bg-black/80 backdrop-blur-sm rounded whitespace-nowrap opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity pointer-events-none">ARCGIS</span>
-          <AnimatePresence>
-            {showArcGIS && (
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="absolute right-12 top-1/2 -translate-y-1/2 w-[340px]">
-                <div className="glass-panel p-3 max-h-[70vh] overflow-y-auto styled-scrollbar">
-                  <ArcGISPanel
-                    onImportLayer={(layer) => setArcgisLayers(prev => [...prev.filter(l => l.id !== layer.id), { ...layer, color: layer.color || '#D4AF37', visible: true, opacity: layer.opacity ?? 0.8 }])}
-                    onRemoveLayer={(id) => setArcgisLayers(prev => prev.filter(l => l.id !== id))}
-                    onUpdateLayer={(id, updates) => setArcgisLayers(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))}
-                    importedLayers={arcgisLayers}
-                    mapBounds={mapCenter?.bounds || null}
-                  />
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
 
         {/* Separator */}
