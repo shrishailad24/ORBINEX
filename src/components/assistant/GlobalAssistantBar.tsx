@@ -137,15 +137,19 @@ export default function GlobalAssistantBar({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [speechSupported, setSpeechSupported] = useState(false);
 
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Speech Recognition
+  // Initialize Web Speech API as secondary fallback
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const SpeechRecognition =
@@ -168,12 +172,13 @@ export default function GlobalAssistantBar({
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('[ORBINEX-AI] Speech recognition error:', event.error);
-          setIsListening(false);
+          console.warn('[ORBINEX-AI] WebSpeech error:', event.error);
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+            setIsListening(false);
+          }
         };
 
         recognitionRef.current = recognition;
@@ -181,22 +186,122 @@ export default function GlobalAssistantBar({
     }
   }, []);
 
-  const toggleVoiceInput = () => {
-    if (!speechSupported) {
-      alert('Speech recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge.');
+  // Primary: MediaRecorder with Whisper-Large-v3-Turbo
+  const startRecording = async () => {
+    setVoiceError(null);
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      // Fall back to WebSpeech
+      if (speechSupported && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsListening(true);
+          return;
+        } catch (e) {
+          console.warn('WebSpeech start error:', e);
+        }
+      }
+      setVoiceError('Audio recording is not supported in this environment.');
       return;
     }
 
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (err) {
-        console.warn('Speech start error:', err);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+
+      const mimeType =
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : '';
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        if (audioBlob.size < 1500) {
+          setIsListening(false);
+          return;
+        }
+
+        setIsTranscribing(true);
+        try {
+          const form = new FormData();
+          form.append('file', audioBlob, 'audio.webm');
+
+          const res = await fetch('/api/assistant/transcribe', {
+            method: 'POST',
+            body: form,
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const transcript = data.text?.trim();
+            if (transcript) {
+              setInput(transcript);
+              handleSendMessage(transcript);
+            }
+          } else {
+            // If server whisper route failed, try WebSpeech transcript if present
+            console.warn('[ORBINEX-Voice] Whisper error status:', res.status);
+          }
+        } catch (err: any) {
+          console.warn('[ORBINEX-Voice] Transcribe request error:', err);
+        } finally {
+          setIsTranscribing(false);
+          setIsListening(false);
+        }
+      };
+
+      recorder.start(250);
+      mediaRecorderRef.current = recorder;
+      setIsListening(true);
+
+      // Also trigger WebSpeech in parallel for immediate live transcript previews
+      if (speechSupported && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (_) {}
       }
+    } catch (err: any) {
+      console.warn('[ORBINEX-Voice] Mic access error:', err);
+      setIsListening(false);
+      setVoiceError(
+        err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError'
+          ? 'Microphone blocked. Please grant microphone permission in your browser.'
+          : 'Unable to access microphone on this device.'
+      );
+      setTimeout(() => setVoiceError(null), 6000);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (_) {}
+    }
+    if (speechSupported && recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (_) {}
+    }
+    setIsListening(false);
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -440,33 +545,72 @@ export default function GlobalAssistantBar({
         )}
       </AnimatePresence>
 
+      {/* Voice Error Notice Banner */}
+      {voiceError && (
+        <div className="mb-2 px-3 py-1.5 rounded-lg bg-red-950/90 border border-red-500/50 text-red-200 text-[11px] font-sans flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-1.5">
+            <ShieldAlert className="w-3.5 h-3.5 text-red-400 shrink-0" />
+            <span>{voiceError}</span>
+          </div>
+          <button
+            onClick={() => setVoiceError(null)}
+            className="text-red-400 hover:text-white ml-2 text-[10px]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Minimal Capsule Assistant Bar (Exact Match with Reference Design) */}
-      <div className="relative flex items-center gap-3 bg-[#070D18]/90 backdrop-blur-2xl border border-[#00E5FF]/40 hover:border-[#00E5FF]/70 focus-within:border-[#00E5FF] rounded-full px-4 py-2 shadow-[0_0_35px_rgba(0,0,0,0.85),0_0_20px_rgba(0,229,255,0.18)] transition-all">
+      <div className={`relative flex items-center gap-3 bg-[#070D18]/90 backdrop-blur-2xl border ${
+        isListening
+          ? 'border-red-500 shadow-[0_0_35px_rgba(239,68,68,0.3)]'
+          : isTranscribing
+          ? 'border-[#00E5FF] shadow-[0_0_35px_rgba(0,229,255,0.3)]'
+          : 'border-[#00E5FF]/40 hover:border-[#00E5FF]/70 focus-within:border-[#00E5FF] shadow-[0_0_35px_rgba(0,0,0,0.85),0_0_20px_rgba(0,229,255,0.18)]'
+      } rounded-full px-4 py-2 transition-all`}>
         {/* Exact Gemini / ORBINEX AI Sparkle Glyph */}
         <div className="shrink-0 flex items-center justify-center text-[#00E5FF]">
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
-            <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
-          </svg>
+          {isTranscribing ? (
+            <RefreshCw className="w-4 h-4 animate-spin text-[#00E5FF]" />
+          ) : isListening ? (
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+            </svg>
+          )}
         </div>
 
-        {/* Text Input */}
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          placeholder="Ask ORBINEX anything about our planet..."
-          className="w-full bg-transparent text-white text-[12.5px] font-mono placeholder:text-slate-400/80 focus:outline-none tracking-wide"
-        />
+        {/* Text Input / Voice Listening State */}
+        {isListening ? (
+          <div className="w-full flex items-center gap-2 text-red-400 text-[12px] font-sans animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            <span>Listening... speak now, then click mic to stop & send</span>
+          </div>
+        ) : isTranscribing ? (
+          <div className="w-full flex items-center gap-2 text-[#00E5FF] text-[12px] font-sans animate-pulse">
+            <span>Transcribing voice with Whisper AI...</span>
+          </div>
+        ) : (
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage();
+              }
+            }}
+            placeholder="Ask ORBINEX anything about our planet..."
+            className="w-full bg-transparent text-white text-[12.5px] font-mono placeholder:text-slate-400/80 focus:outline-none tracking-wide"
+          />
+        )}
 
         {/* View Previous Response Indicator Badge (if minimized) */}
-        {messages.length > 0 && !isExpanded && (
+        {messages.length > 0 && !isExpanded && !isListening && (
           <button
             onClick={() => setIsExpanded(true)}
             className="px-2 py-0.5 rounded-full bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 text-[#00E5FF] text-[8.5px] font-mono tracking-wider shrink-0 transition-colors"
@@ -479,20 +623,20 @@ export default function GlobalAssistantBar({
         {/* Voice Input Button */}
         <button
           onClick={toggleVoiceInput}
-          title={isListening ? 'Stop listening' : 'Speak using microphone'}
+          title={isListening ? 'Stop recording & transcribe' : 'Speak using microphone'}
           className={`p-1.5 rounded-full transition-all shrink-0 ${
             isListening
-              ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.7)] animate-bounce'
+              ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.9)] animate-pulse'
               : 'text-slate-400 hover:text-[#00E5FF] hover:bg-white/5'
           }`}
         >
-          <Mic className="w-4 h-4" />
+          {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
         </button>
 
         {/* Circular Send Button */}
         <button
           onClick={() => handleSendMessage()}
-          disabled={!input.trim() || loading}
+          disabled={!input.trim() || loading || isListening}
           title="Send query"
           className="w-7 h-7 rounded-full bg-[#00E5FF]/10 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/40 hover:border-[#00E5FF] flex items-center justify-center text-[#00E5FF] hover:text-white transition-all disabled:opacity-30 disabled:hover:bg-[#00E5FF]/10 disabled:hover:border-[#00E5FF]/40 shrink-0 shadow-[0_0_10px_rgba(0,229,255,0.1)]"
         >

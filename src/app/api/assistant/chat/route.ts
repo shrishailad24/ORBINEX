@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildGroundedContext, type AssistantContext } from '@/lib/assistant-rag';
+import { buildGroundedContext, generateLocalFallbackResponse, type AssistantContext } from '@/lib/assistant-rag';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -61,10 +61,9 @@ ${contextBlock}
     // 4. Query Groq API
     let answer = '';
     const modelsToTry = [
-      'llama-3.3-70b-versatile',
-      'llama-3.1-8b-instant',
-      'llama3-70b-8192',
-      'mixtral-8x7b-32768',
+      'qwen/qwen3.8-27b',
+      'openai/gpt-oss-20b',
+      'openai/gpt-oss-120b',
     ];
 
     for (const model of modelsToTry) {
@@ -79,15 +78,18 @@ ${contextBlock}
             model,
             messages: formattedMessages,
             temperature: 0.3,
-            max_tokens: 512,
+            max_tokens: 650,
           }),
           signal: AbortSignal.timeout(15000),
         });
 
         if (groqRes.ok) {
           const data = await groqRes.json();
-          answer = data.choices?.[0]?.message?.content || '';
-          if (answer) break;
+          const messageObj = data.choices?.[0]?.message;
+          const rawContent = messageObj?.content?.trim() || '';
+          const rawReasoning = messageObj?.reasoning?.trim() || '';
+          answer = rawContent || rawReasoning || '';
+          if (answer && answer.length > 10) break;
         } else {
           console.warn(`[ORBINEX-AI] Model ${model} returned HTTP ${groqRes.status}`);
         }
@@ -96,9 +98,9 @@ ${contextBlock}
       }
     }
 
-    if (!answer) {
-      // Graceful fallback if upstream quota or network issue
-      answer = `**I'm connected to ORBINEX planetary telemetry.**\n\n- **Target Area:** ${context?.activeAOI?.name || 'Global View'}\n- **Satellite Constellations:** Sentinel-1 SAR & Sentinel-2 Optical active.\n\nHow can I help you? You can draw a box on the map to analyze surface changes or generate a full PDF report.`;
+    if (!answer || answer.trim().length === 0) {
+      // Intelligent grounded local fallback whenever external API quota or network is unavailable
+      answer = generateLocalFallbackResponse(message, context as AssistantContext);
     }
 
     return NextResponse.json({
