@@ -24,6 +24,9 @@ import {
   Download,
   FileText,
   SlidersHorizontal,
+  CheckCircle2,
+  Eye,
+  AlertCircle,
 } from 'lucide-react';
 import type { AssistantContext, RAGSource } from '@/lib/assistant-rag';
 
@@ -84,7 +87,17 @@ function renderInlineFormatting(text: string) {
   });
 }
 
-function FormattedMessage({ content }: { content: string }) {
+function FormattedMessage({
+  content,
+  onDownloadClick,
+  onOpenSlider,
+  isGeneratingPdf,
+}: {
+  content: string;
+  onDownloadClick?: (text: string) => void;
+  onOpenSlider?: () => void;
+  isGeneratingPdf?: boolean;
+}) {
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
   let currentList: string[] = [];
@@ -108,6 +121,58 @@ function FormattedMessage({ content }: { content: string }) {
     const trimmed = line.trim();
     if (!trimmed) {
       flushList(idx);
+      return;
+    }
+
+    // 1. Bracketed PDF Download Action Button (e.g. "[📄 Download 8-Page PDF Dossier: ...]")
+    if (
+      (/^\[\s*(?:📄|\uD83D\uDCC4)?\s*(?:Download|Interactive).*?PDF.*?\]$/i.test(trimmed)) ||
+      (/\[\s*(?:📄|\uD83D\uDCC4)?\s*Download 8-Page PDF/i.test(trimmed)) ||
+      (/^\[\s*Download\s+.*?PDF.*?\]$/i.test(trimmed))
+    ) {
+      flushList(idx);
+      const cleanLabel = trimmed.replace(/^\[\s*(?:📄|\uD83D\uDCC4)?\s*/, '').replace(/\s*\]$/, '');
+      elements.push(
+        <div key={`pdf-btn-${idx}`} className="my-2.5">
+          <button
+            type="button"
+            onClick={() => onDownloadClick?.(cleanLabel)}
+            disabled={isGeneratingPdf}
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00E5FF]/25 via-cyan-500/20 to-blue-600/30 hover:from-[#00E5FF]/40 hover:to-blue-600/50 border border-[#00E5FF] text-white font-semibold text-[12px] flex items-center justify-center gap-2.5 transition-all shadow-[0_0_18px_rgba(0,229,255,0.25)] hover:shadow-[0_0_25px_rgba(0,229,255,0.45)] cursor-pointer disabled:opacity-60 disabled:cursor-wait group active:scale-[0.98]"
+          >
+            {isGeneratingPdf ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#00E5FF]" />
+                <span className="text-[#00E5FF] tracking-wide">Compiling & Generating PDF Dossier...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 text-[#00E5FF] group-hover:scale-110 transition-transform" />
+                <span className="tracking-wide">📄 {cleanLabel}</span>
+              </>
+            )}
+          </button>
+        </div>
+      );
+      return;
+    }
+
+    // 2. Bracketed Slider Action Button (e.g. "[📷 Interactive Before/After Slider: ...]")
+    if (/^\[\s*(?:📷|\uD83D\uDCF7)?\s*Interactive Before\/After Slider.*?\]$/i.test(trimmed)) {
+      flushList(idx);
+      const cleanLabel = trimmed.replace(/^\[\s*(?:📷|\uD83D\uDCF7)?\s*/, '').replace(/\s*\]$/, '');
+      elements.push(
+        <div key={`slider-btn-${idx}`} className="my-2">
+          <button
+            type="button"
+            onClick={() => onOpenSlider?.()}
+            className="px-3.5 py-1.5 rounded-lg bg-black/60 hover:bg-[#00E5FF]/20 border border-white/20 hover:border-[#00E5FF]/60 text-slate-200 hover:text-white text-[11px] font-medium flex items-center gap-2 transition-all cursor-pointer group active:scale-[0.98]"
+          >
+            <Eye className="w-3.5 h-3.5 text-[#00E5FF] group-hover:scale-110 transition-transform" />
+            <span>📷 {cleanLabel}</span>
+          </button>
+        </div>
+      );
       return;
     }
 
@@ -169,6 +234,7 @@ export default function GlobalAssistantBar({
   const [speechSupported, setSpeechSupported] = useState(false);
 
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
+  const [pdfSuccessLocation, setPdfSuccessLocation] = useState<string | null>(null);
 
   const handleDownloadChatPdf = async (action: SatelliteActionData) => {
     setGeneratingPdfId(action.locationName);
@@ -220,19 +286,28 @@ export default function GlobalAssistantBar({
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || errJson.details || `HTTP ${res.status}`);
+      }
       const blob = await res.blob();
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = `ORBINEX-Satellite-Report-${action.locationName.replace(/\s+/g, '-')}.pdf`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      const safeName = (action.locationName || 'AOI').replace(/[^a-zA-Z0-9_-]/g, '-');
+      link.download = `ORBINEX-Satellite-Report-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+
+      setPdfSuccessLocation(action.locationName);
+      setTimeout(() => setPdfSuccessLocation(null), 6000);
     } catch (err: any) {
       console.error('Chat PDF generation failed:', err);
-      alert('Failed to generate PDF report. Please try again.');
+      alert(`PDF Report Generation failed: ${err.message || 'Please try again.'}`);
     } finally {
       setGeneratingPdfId(null);
     }
@@ -579,7 +654,40 @@ export default function GlobalAssistantBar({
                         : 'bg-white/[0.04] border border-white/10 text-slate-100 rounded-bl-sm'
                     }`}
                   >
-                    <FormattedMessage content={m.content} />
+                    <FormattedMessage
+                      content={m.content}
+                      onDownloadClick={(btnText) => {
+                        if (m.satelliteAction) {
+                          handleDownloadChatPdf(m.satelliteAction);
+                        } else {
+                          const recentAction = [...messages].reverse().find((msg) => msg.satelliteAction)?.satelliteAction;
+                          const targetAction: SatelliteActionData = recentAction || {
+                            type: 'satellite_comparison',
+                            locationName: activeAOI?.name || 'Bangalore Airport Road Corridor',
+                            lat: activeAOI?.center ? activeAOI.center[0] : (viewState?.lat || 13.1986),
+                            lng: activeAOI?.center ? activeAOI.center[1] : (viewState?.lng || 77.7066),
+                            aoiBbox: activeAOI?.bbox,
+                            areaKm2: activeAOI?.areaKm2 || 100,
+                            platform: 'Copernicus Sentinel-2 Optical (10m)',
+                            beforeDate: '2020-01-15',
+                            afterDate: '2024-01-15',
+                          };
+                          handleDownloadChatPdf(targetAction);
+                        }
+                      }}
+                      onOpenSlider={() => onOpenSatellite?.()}
+                      isGeneratingPdf={generatingPdfId !== null}
+                    />
+
+                    {/* PDF Generation Success Toast Notification */}
+                    {pdfSuccessLocation && (
+                      <div className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-sans flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          Publication-ready 8-page dossier for <b>{pdfSuccessLocation}</b> generated and downloaded!
+                        </span>
+                      </div>
+                    )}
 
                     {/* Rich Satellite Action & Generated Imagery Card */}
                     {m.satelliteAction && (
@@ -730,7 +838,7 @@ export default function GlobalAssistantBar({
                 📐 How to Draw AOI
               </button>
               <button
-                onClick={() => handleSendMessage('How do I generate and download a satellite PDF intelligence report?')}
+                onClick={() => handleSendMessage('Generate full 8-page satellite PDF intelligence report for this AOI')}
                 className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-[#00E5FF]/15 border border-white/10 hover:border-[#00E5FF]/40 text-[10px] text-slate-300 hover:text-white transition-all shrink-0"
               >
                 📄 Generate PDF Report

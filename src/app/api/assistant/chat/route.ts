@@ -12,6 +12,10 @@ const KNOWN_LOCATIONS: Record<string, { lat: number; lng: number; name: string; 
   bengaluru: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },
   bangalore: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },
   bengluru: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },
+  benglore: { lat: 12.9716, lng: 77.5946, name: 'Bangalore Metropolitan Region', zoom: 13 },
+  'airport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
+  'airportport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
+  airport: { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
   dhubri: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
   assam: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
   brahmaputra: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
@@ -44,12 +48,19 @@ export async function POST(req: NextRequest) {
       /^(how\s+(do|can|to)|what\s+(is|can|are)|explain|guide|help|where\s+can|tell\s+me|show\s+me\s+how)/i.test(textLower) ||
       /how\s+(do|can)\s+i\s+(compare|draw|generate|download|view)/i.test(textLower);
 
-    // 2. Explicit Action request to generate/produce satellite imagery or PDF dossier
+    // 2. Affirmative follow-ups ("yeah give me", "yes", "sure", "download it", "generate it")
+    const isAffirmativeFollowup =
+      /^(yeah|yes|yep|sure|ok|okay|please|give\s+me|send\s+it|download\s+it|generate\s+it|do\s+it|let's\s+do\s+it|go\s+ahead)\b/i.test(textLower.trim()) ||
+      /(yeah\s+give\s+me|yes\s+please|give\s+it\s+to\s+me|download\s+pdf|get\s+pdf|generate\s+pdf|make\s+pdf)/i.test(textLower.trim());
+
+    // 3. Explicit Action request to generate/produce satellite imagery or PDF dossier
     const isExplicitActionRequest =
       !isInformationalQuery &&
       (
+        isAffirmativeFollowup ||
         /(generat|genrat|grnerat|create|make|build|run|fetch|pull|produce)\s+.*(pdf|report|dossier|imagery|image|pass|comparison)/i.test(textLower) ||
-        /(can\s+u|please|kindly)?\s*(generate|gen|show|display|get|create|download)\s+.*(bengaluru|bengluru|bangalore|dhubri|prayagraj|ghats|tokyo|satellite|img|image|pdf|report|dossier)/i.test(textLower) ||
+        /(can\s+u|please|kindly)?\s*(generate|gen|show|display|get|create|download)\s+.*(bengaluru|bengluru|bangalore|benglore|airport|dhubri|prayagraj|ghats|tokyo|amazon|satellite|img|image|pdf|report|dossier)/i.test(textLower) ||
+        /(image|img|pic|picture)\s+of\s+.*(before|after|airport|bengaluru|bangalore|benglore|dhubri|amazon)/i.test(textLower) ||
         /^(generate|compare|download|create)\b/i.test(textLower.trim()) ||
         /before\s+and\s+after\s+image/i.test(textLower)
       );
@@ -57,12 +68,23 @@ export async function POST(req: NextRequest) {
     let satelliteAction: any = null;
 
     if (isExplicitActionRequest) {
-      // 1. Resolve Location
+      // 1. Resolve Location from current message
       let targetLoc: { lat: number; lng: number; name: string; zoom: number } | null = null;
       for (const [key, val] of Object.entries(KNOWN_LOCATIONS)) {
         if (textLower.includes(key)) {
           targetLoc = val;
           break;
+        }
+      }
+
+      // 2. If not found in message, inherit location from recent history (e.g. user answered "yeah give me")
+      if (!targetLoc && Array.isArray(history) && history.length > 0) {
+        const historyText = history.slice(-4).map((h) => h.content || '').join(' ').toLowerCase();
+        for (const [key, val] of Object.entries(KNOWN_LOCATIONS)) {
+          if (historyText.includes(key)) {
+            targetLoc = val;
+            break;
+          }
         }
       }
 

@@ -221,14 +221,16 @@ export default function SatelliteComparePanel({
     const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
 
     const rawUrl = scene.thumbnailUrl || highResExportUrl;
+    const isExportFallback = !scene.thumbnailUrl;
+    const effectiveSceneBbox = (isExportFallback || !scene.bbox) ? currentBbox : scene.bbox;
 
-    if (cropped && rawUrl && scene.bbox && currentBbox) {
+    if (cropped && rawUrl && effectiveSceneBbox && currentBbox) {
       const params = new URLSearchParams({
         url: rawUrl,
         stretch: contrastStretch ? 'true' : 'false',
         platform: scene.platform || platform,
         width: '640',
-        sceneBbox: scene.bbox.join(','),
+        sceneBbox: effectiveSceneBbox.join(','),
         aoiBbox: currentBbox.join(','),
       });
       return `/api/satellite/process?${params.toString()}`;
@@ -646,11 +648,13 @@ export default function SatelliteComparePanel({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
       a.download = `ORBINEX-Intelligence-Report-${(activeAoi.name || 'AOI').replace(/[^a-zA-Z0-9_-]/g, '_')}-${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(url), 15000);
 
       setReportSuccess(true);
       setTimeout(() => setReportSuccess(false), 6000);
