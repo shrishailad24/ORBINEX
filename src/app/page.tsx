@@ -28,6 +28,7 @@ import LiveAlerts from '@/components/LiveAlerts';
 import WorldRemote from '@/components/WorldRemote';
 import ArcGISPanel from '@/components/ArcGISPanel';
 import SatelliteComparePanel from '@/components/geointel/SatelliteComparePanel';
+import { DatasetCatalogueModal } from '@/components/geointel/DatasetCatalogueModal';
 import GlobalAssistantBar from '@/components/assistant/GlobalAssistantBar';
 const OsirisMap = dynamic(() => import('@/components/OsirisMap'), { ssr: false });
 const LayerPanel = dynamic(() => import('@/components/LayerPanel'));
@@ -324,6 +325,7 @@ export default function Dashboard() {
   const [showRemote, setShowRemote] = useState(false);
   const [showArcGIS, setShowArcGIS] = useState(false);
   const [showSatelliteCompare, setShowSatelliteCompare] = useState(false);
+  const [showDatasetCatalogue, setShowDatasetCatalogue] = useState(false);
   const [activeSatelliteImagery, setActiveSatelliteImagery] = useState<any>(null);
   const [arcgisLayers, setArcgisLayers] = useState<Array<{ id: string; title: string; url: string; geojson: any; color: string; visible: boolean; opacity: number }>>([]);
   /* What Live Transit can see right now, for its row in the layer panel. */
@@ -2395,6 +2397,7 @@ export default function Dashboard() {
 
       <SatelliteComparePanel
         isOpen={showSatelliteCompare}
+        onOpenDatasets={() => setShowDatasetCatalogue(true)}
         onClose={() => {
           setShowSatelliteCompare(false);
           setIsDrawingSatelliteAOI(false);
@@ -2512,11 +2515,20 @@ export default function Dashboard() {
             setShowAlerts(true);
           } else if (panelId === 'arcgis') {
             setShowArcGIS(true);
+          } else if (panelId === 'datasets' || panelId === 'catalogue') {
+            setShowDatasetCatalogue(true);
           }
         }}
         onStartDrawing={() => {
           setShowDrawing(true);
         }}
+      />
+
+      {/* ── UNIFIED GEOSPATIAL DATASET CATALOGUE MODAL ── */}
+      <DatasetCatalogueModal
+        isOpen={showDatasetCatalogue}
+        onClose={() => setShowDatasetCatalogue(false)}
+        activeAOI={satelliteDrawnAOI ? { name: satelliteDrawnAOI.name, bbox: satelliteDrawnAOI.bbox } : null}
       />
 
       {/* ── OVERLAYS ── */}

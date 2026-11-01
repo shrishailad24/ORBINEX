@@ -136,13 +136,15 @@ function FormattedMessage({
     if (
       /\[.*?Download.*?PDF.*?\]/i.test(trimmed) ||
       /\[.*?PDF\s+Dossier.*?\]/i.test(trimmed) ||
-      /\[.*?Download.*?Dossier.*?\]/i.test(trimmed)
+      /\[.*?Download.*?Dossier.*?\]/i.test(trimmed) ||
+      /Download\s+.*?PDF\s+Dossier/i.test(trimmed) ||
+      /\[\s*📄\s*Download/i.test(trimmed)
     ) {
       flushList(idx);
       const cleanLabel = trimmed
-        .replace(/^\[[^a-zA-Z0-9]*/, '')
-        .replace(/[^a-zA-Z0-9)\]]*\]$/, '')
-        .replace(/\]$/, '')
+        .replace(/^[\[*_\s]+/, '')
+        .replace(/[\]*_\s]+$/, '')
+        .replace(/^📄\s*/, '')
         .trim();
       elements.push(
         <div key={`pdf-btn-${idx}`} className="my-2.5">
@@ -621,6 +623,17 @@ export default function GlobalAssistantBar({
 
       setMessages((prev) => [...prev, botMessage]);
       speakText(botMessage.content);
+
+      // Autonomous Operator: If user explicitly asked for / confirmed PDF generation:
+      const affirmativeOrDownload =
+        /^(yeah|yes|yep|sure|ok|okay|please|give\s+me|send\s+me|download|get\s+it|do\s+it|generate)\b/i.test(textToSend) ||
+        /(download|generate|give\s+me|get)\s+.*(pdf|report|dossier)/i.test(textToSend);
+      if (affirmativeOrDownload) {
+        const actionToDownload = data.satelliteAction || [...messages].reverse().find(m => m.satelliteAction)?.satelliteAction;
+        if (actionToDownload) {
+          handleDownloadChatPdf(actionToDownload);
+        }
+      }
     } catch (err: any) {
       const errorMessage: Message = {
         id: `msg-${Date.now() + 1}`,

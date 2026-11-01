@@ -14,9 +14,22 @@ const KNOWN_LOCATIONS: Record<string, { lat: number; lng: number; name: string; 
   bangalore: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },
   bengluru: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },
   benglore: { lat: 12.9716, lng: 77.5946, name: 'Bangalore Metropolitan Region', zoom: 13 },
+  'bengaluru airport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
+  'bangalore airport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
   'airport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
   'airportport road': { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
   airport: { lat: 13.1986, lng: 77.7066, name: 'Bangalore Airport Road Corridor', zoom: 13 },
+  yeshwanthpur: { lat: 13.0227, lng: 77.5447, name: 'Yeshwanthpur Transport Hub', zoom: 14 },
+  mathikere: { lat: 13.0334, lng: 77.5640, name: 'Mathikere Urban Sector', zoom: 14 },
+  delhi: { lat: 28.6139, lng: 77.2090, name: 'New Delhi National Capital Region', zoom: 13 },
+  'new delhi': { lat: 28.6139, lng: 77.2090, name: 'New Delhi National Capital Region', zoom: 13 },
+  mumbai: { lat: 19.0760, lng: 72.8777, name: 'Mumbai Metropolitan Area', zoom: 13 },
+  kolkata: { lat: 22.5726, lng: 88.3639, name: 'Kolkata Metropolitan Area', zoom: 13 },
+  chennai: { lat: 13.0827, lng: 80.2707, name: 'Chennai Urban Corridor', zoom: 13 },
+  hyderabad: { lat: 17.3850, lng: 78.4867, name: 'Hyderabad Cyberabad Region', zoom: 13 },
+  varanasi: { lat: 25.3176, lng: 82.9739, name: 'Varanasi Ghats Heritage Corridor', zoom: 13 },
+  kerala: { lat: 9.9312, lng: 76.2673, name: 'Kochi & Kerala Coastal Zone', zoom: 12 },
+  kerela: { lat: 9.9312, lng: 76.2673, name: 'Kochi & Kerala Coastal Zone', zoom: 12 },
   dhubri: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
   assam: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
   brahmaputra: { lat: 26.02, lng: 89.98, name: 'Dhubri Riverine Border', zoom: 13 },
@@ -313,8 +326,13 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
     const isRefusal =
       /i (can't|cannot|do not have the ability to|am unable to) (open|access|stream|provide direct links to) (live )?(cctv|camera|feed|stream|private)/i.test(answer) ||
       /as an ai.*(cannot|can't) (open|view|access|stream)/i.test(answer) ||
-      /i can't open live/i.test(answer) ||
-      (/private cameras/i.test(answer) && /cannot|can't/i.test(answer));
+      /i can't open/i.test(answer) ||
+      /i cannot open/i.test(answer) ||
+      (/private cameras/i.test(answer) && /cannot|can't/i.test(answer)) ||
+      /to find a live camera/i.test(answer) ||
+      /navigate to the location/i.test(answer) ||
+      /toggle the ["']?cctv/i.test(answer) ||
+      /select a camera/i.test(answer);
 
     if (!answer || answer.trim().length === 0 || isRefusal) {
       if (!copilotAction && /(camera|cctv|feed|stream|cam)/i.test(textLower)) {

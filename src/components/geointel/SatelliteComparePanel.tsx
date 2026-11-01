@@ -28,6 +28,7 @@ import {
   SlidersHorizontal,
   BarChart3,
   FileText,
+  Database,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
@@ -52,6 +53,7 @@ const QUICK_GLOBAL_CHIPS = [
 interface SatelliteComparePanelProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenDatasets?: () => void;
   onLocate?: (lat: number, lng: number, zoom?: number) => void;
   onProjectImagery?: (config: {
     beforeScene: SatelliteScene | null;
@@ -92,6 +94,7 @@ interface SatelliteComparePanelProps {
 export default function SatelliteComparePanel({
   isOpen,
   onClose,
+  onOpenDatasets,
   onLocate,
   onProjectImagery,
   onStartDrawAOI,
@@ -915,12 +918,25 @@ export default function SatelliteComparePanel({
               <p className="text-[9px] text-[#00E5FF]/80 tracking-widest uppercase">Sentinel-1/2 & Historical Comparison</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {onOpenDatasets && (
+              <button
+                type="button"
+                onClick={onOpenDatasets}
+                title="Open 35+ Master Dataset Catalogue & AOI Acquisition"
+                className="px-2 py-1 rounded bg-[#00E5FF]/10 hover:bg-[#00E5FF]/20 border border-[#00E5FF]/40 text-[#00E5FF] text-[8.5px] font-mono font-bold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Database className="w-3 h-3 text-[#00E5FF]" />
+                <span>DATASETS</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* Content Container */}
