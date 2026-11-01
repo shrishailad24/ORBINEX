@@ -31,7 +31,8 @@ import {
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  DollarSign
 } from 'lucide-react';
 import { STRATEGIC_PRESETS, type StrategicLocationPreset } from '@/lib/satellite/historical-providers';
 import { type HistoricalComparisonPair, type SatelliteScene } from '@/lib/satellite/types';
@@ -317,6 +318,93 @@ export default function SatelliteComparePanel({
       console.error('[ORBINEX] Analysis failed:', err);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  // Phase 3 & Phase 5: Specialist Geospatial AI Suite
+  const [specialistAiResult, setSpecialistAiResult] = useState<any | null>(null);
+  const [runningSpecialistAi, setRunningSpecialistAi] = useState(false);
+  const [specialistAiError, setSpecialistAiError] = useState<string | null>(null);
+  const [feedbackRecorded, setFeedbackRecorded] = useState(false);
+
+  // Phase 2: Commercial VHR Quoting
+  const [vhrQuoteResult, setVhrQuoteResult] = useState<any | null>(null);
+  const [vhrQuoting, setVhrQuoting] = useState(false);
+  const [showVhrQuoteModal, setShowVhrQuoteModal] = useState(false);
+
+  const handleRunSpecialistAi = async () => {
+    if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
+    setRunningSpecialistAi(true);
+    setSpecialistAiError(null);
+    try {
+      const areaKm2 = drawnAOI?.areaKm2 || (4 * surroundingRadiusKm * surroundingRadiusKm);
+      const beforeUrl = getSceneImageUrl(comparison.before.matchedScene, true);
+      const afterUrl = getSceneImageUrl(comparison.after.matchedScene, true);
+      const bbox = drawnAOI?.bbox || currentBbox;
+      const res = await fetch('/api/satellite/ai/infer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beforePath: beforeUrl,
+          afterPath: afterUrl,
+          areaKm2,
+          bbox,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setSpecialistAiResult(data);
+    } catch (err: any) {
+      console.error('[ORBINEX] Specialist AI failed:', err);
+      setSpecialistAiError(err.message || 'Specialist AI inference failed');
+    } finally {
+      setRunningSpecialistAi(false);
+    }
+  };
+
+  const handleGetVhrQuote = async (providerId: string) => {
+    setVhrQuoting(true);
+    try {
+      const areaKm2 = drawnAOI?.areaKm2 || (4 * surroundingRadiusKm * surroundingRadiusKm);
+      const res = await fetch('/api/satellite/vhr/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId,
+          areaKm2,
+          orderType: 'archive',
+          licensing: 'Single-User',
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setVhrQuoteResult(data.quote);
+      setShowVhrQuoteModal(true);
+    } catch (err: any) {
+      console.error('[ORBINEX] VHR Quote failed:', err);
+    } finally {
+      setVhrQuoting(false);
+    }
+  };
+
+  const handleSendFeedback = async (verification: string) => {
+    if (!drawnAOI && !currentBbox) return;
+    try {
+      await fetch('/api/satellite/ai/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aoiBbox: drawnAOI?.bbox || currentBbox,
+          predictedCategory: 'general_change',
+          verification,
+          confidenceScore: analysisReport?.confidence_pct ? analysisReport.confidence_pct / 100 : 0.9,
+          modelIdentifier: 'ORBINEX-Specialist-v2',
+        }),
+      });
+      setFeedbackRecorded(true);
+      setTimeout(() => setFeedbackRecorded(false), 4000);
+    } catch (err) {
+      console.error('[ORBINEX] Feedback failed:', err);
     }
   };
 
@@ -1132,6 +1220,14 @@ export default function SatelliteComparePanel({
                 <p className="text-slate-400 font-mono text-[7px]">
                   Attribution: © Airbus DS [Pléiades Neo 30cm] · Metadata Discovery Active · Set AIRBUS_API_KEY for licensed raster COGs.
                 </p>
+                <button
+                  onClick={() => handleGetVhrQuote('airbus-neo')}
+                  disabled={vhrQuoting}
+                  className="mt-1 py-1 px-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[#00E5FF] text-[8px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full"
+                >
+                  <DollarSign className="w-2.5 h-2.5" />
+                  <span>Instant 30cm Pléiades Neo Commercial Quote</span>
+                </button>
               </div>
             )}
             {platform === 'SkySat' && (
@@ -1146,6 +1242,34 @@ export default function SatelliteComparePanel({
                 <p className="text-slate-400 font-mono text-[7px]">
                   Attribution: © Planet Labs PBC [SkySat 50cm] · Metadata Discovery Active · Set PLANET_API_KEY for licensed raster COGs.
                 </p>
+                <button
+                  onClick={() => handleGetVhrQuote('planet-skysat')}
+                  disabled={vhrQuoting}
+                  className="mt-1 py-1 px-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[#00E5FF] text-[8px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full"
+                >
+                  <DollarSign className="w-2.5 h-2.5" />
+                  <span>Instant 50cm SkySat Commercial Quote</span>
+                </button>
+              </div>
+            )}
+            {showVhrQuoteModal && vhrQuoteResult && (
+              <div className="p-2.5 rounded bg-cyan-950/40 border border-cyan-500/40 space-y-1.5 text-[8px]">
+                <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-cyan-500/20 pb-1">
+                  <span>COMMERCIAL VHR PRICING & TASKING (AI-04)</span>
+                  <button onClick={() => setShowVhrQuoteModal(false)} className="text-slate-400 hover:text-white">✕</button>
+                </div>
+                <div className="text-white font-bold text-[9px]">{vhrQuoteResult.provider.name}</div>
+                <div className="grid grid-cols-2 gap-1 font-mono text-[7.5px] text-slate-300">
+                  <div>Requested Area: {vhrQuoteResult.requestedAreaKm2.toFixed(2)} km²</div>
+                  <div>Billable Area: {vhrQuoteResult.billableAreaKm2} km²</div>
+                  <div>Rate: ${vhrQuoteResult.baseRatePerKm2}/km²</div>
+                  <div>Turnaround: ~{vhrQuoteResult.estimatedDeliveryHours} hrs</div>
+                </div>
+                <div className="flex items-center justify-between pt-1 border-t border-cyan-500/20">
+                  <span className="text-slate-300">ESTIMATED TOTAL:</span>
+                  <span className="text-emerald-400 font-bold text-[11px] font-mono">${vhrQuoteResult.totalEstimateUsd.toLocaleString()} USD</span>
+                </div>
+                <div className="text-[7px] text-amber-300/80 italic">{vhrQuoteResult.honestResolutionNotice}</div>
               </div>
             )}
           </div>
@@ -1727,6 +1851,95 @@ export default function SatelliteComparePanel({
                       {/* Limitations */}
                       <div className="text-[7.5px] text-slate-500 italic pt-1 border-t border-white/5">
                         {analysisReport.limitations}
+                      </div>
+
+                      {/* Specialist AI Suite (Prithvi, Forest, Building, Water, Land) */}
+                      <div className="pt-2 border-t border-white/10 space-y-2">
+                        <div className="flex items-center justify-between text-[8px] font-bold text-slate-300">
+                          <span className="flex items-center gap-1 text-[#00E5FF]">
+                            <Sparkles className="w-3 h-3 text-[#00E5FF]" />
+                            SPECIALIST AI SUITE (AI-07 to AI-13)
+                          </span>
+                        </div>
+
+                        {!specialistAiResult ? (
+                          <button
+                            onClick={handleRunSpecialistAi}
+                            disabled={runningSpecialistAi}
+                            className="w-full py-1.5 px-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-200 font-bold text-[8.5px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_12px_rgba(6,182,212,0.2)] disabled:opacity-50"
+                          >
+                            {runningSpecialistAi ? (
+                              <>
+                                <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" />
+                                <span>RUNNING MULTI-MODEL INFERENCE...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3 text-cyan-400" />
+                                <span>RUN SPECIALIST MULTI-MODEL AI</span>
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="space-y-2 p-2 rounded bg-cyan-950/20 border border-cyan-500/30 text-[8px]">
+                            {/* Prithvi Foundation Model Score */}
+                            <div className="p-1.5 rounded bg-black/40 border border-cyan-500/20 flex items-center justify-between">
+                              <span className="text-cyan-300 font-bold">Prithvi-EO-2.0:</span>
+                              <span className="text-emerald-400 font-mono font-bold">
+                                Anomaly {specialistAiResult.foundation_model?.foundation_anomaly_score}% (Shift: {specialistAiResult.foundation_model?.latent_temporal_divergence})
+                              </span>
+                            </div>
+
+                            {/* Specialist Metrics Breakdown */}
+                            <div className="grid grid-cols-2 gap-1 font-mono">
+                              <div className="p-1 rounded bg-black/30 border border-white/5">
+                                <div className="text-red-400 font-bold">FOREST AI (AI-08)</div>
+                                <div className="text-slate-300">Loss: {specialistAiResult.specialists?.forest?.metrics?.canopy_loss_km2} km² ({specialistAiResult.specialists?.forest?.metrics?.canopy_loss_pct}%)</div>
+                                <div className="text-slate-400 text-[7px]">CO₂e: {specialistAiResult.specialists?.forest?.metrics?.estimated_biomass_co2e_loss_tons?.toLocaleString()} tons</div>
+                              </div>
+                              <div className="p-1 rounded bg-black/30 border border-white/5">
+                                <div className="text-amber-400 font-bold">URBAN AI (AI-10)</div>
+                                <div className="text-slate-300">New Impervious: {specialistAiResult.specialists?.building?.metrics?.new_construction_km2} km²</div>
+                                <div className="text-slate-400 text-[7px]">~{specialistAiResult.specialists?.building?.metrics?.estimated_new_structures?.toLocaleString()} footprints</div>
+                              </div>
+                              <div className="p-1 rounded bg-black/30 border border-white/5">
+                                <div className="text-cyan-400 font-bold">WATER AI (AI-11)</div>
+                                <div className="text-slate-300">State: {specialistAiResult.specialists?.water?.hydrologic_state}</div>
+                                <div className="text-slate-400 text-[7px]">Gain: {specialistAiResult.specialists?.water?.metrics?.water_inundation_km2} km² · Loss: {specialistAiResult.specialists?.water?.metrics?.water_recession_km2} km²</div>
+                              </div>
+                              <div className="p-1 rounded bg-black/30 border border-white/5">
+                                <div className="text-emerald-400 font-bold">LAND COVER (AI-12)</div>
+                                <div className="text-slate-300">Trees: {specialistAiResult.specialists?.land_cover?.observation_t2_pct?.tree_cover}%</div>
+                                <div className="text-slate-400 text-[7px]">Built-up: {specialistAiResult.specialists?.land_cover?.observation_t2_pct?.built_up}%</div>
+                              </div>
+                            </div>
+
+                            {/* Continuous Learning Analyst Feedback (AI-18) */}
+                            <div className="pt-1.5 border-t border-white/10 flex items-center justify-between text-[7.5px]">
+                              <span className="text-slate-400">Analyst Verification (AI-18):</span>
+                              <div className="flex items-center gap-1">
+                                {feedbackRecorded ? (
+                                  <span className="text-emerald-400 font-bold">Feedback Logged!</span>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => handleSendFeedback('TRUE_POSITIVE')}
+                                      className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/40"
+                                    >
+                                      Confirm TP
+                                    </button>
+                                    <button
+                                      onClick={() => handleSendFeedback('FALSE_POSITIVE')}
+                                      className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/40"
+                                    >
+                                      Flag FP
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <button
