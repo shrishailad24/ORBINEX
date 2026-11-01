@@ -87,6 +87,64 @@ export function getWaybackTileUrl(date: string): string {
   return `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanDate}`;
 }
 
+function selectBestOverlappingPair(
+  beforeCandidates: SatelliteScene[],
+  afterCandidates: SatelliteScene[],
+  focalLat: number,
+  focalLng: number
+): [SatelliteScene | null, SatelliteScene | null] {
+  if (!beforeCandidates.length && !afterCandidates.length) return [null, null];
+  if (!beforeCandidates.length) return [null, afterCandidates[0]];
+  if (!afterCandidates.length) return [beforeCandidates[0], null];
+
+  let bestScore = -Infinity;
+  let bestPair: [SatelliteScene, SatelliteScene] = [beforeCandidates[0], afterCandidates[0]];
+
+  for (const b of beforeCandidates) {
+    const bBox = b.bbox;
+    const bContains = bBox ? (focalLng >= bBox[0] && focalLng <= bBox[2] && focalLat >= bBox[1] && focalLat <= bBox[3]) : false;
+
+    for (const a of afterCandidates) {
+      const isIdentical = (b.id && a.id && b.id === a.id) || (b.thumbnailUrl && a.thumbnailUrl && b.thumbnailUrl === a.thumbnailUrl);
+      const aBox = a.bbox;
+      const aContains = aBox ? (focalLng >= aBox[0] && focalLng <= aBox[2] && focalLat >= aBox[1] && focalLat <= aBox[3]) : false;
+
+      let overlapArea = 0;
+      let iou = 0;
+      if (bBox && aBox) {
+        const minX = Math.max(bBox[0], aBox[0]);
+        const minY = Math.max(bBox[1], aBox[1]);
+        const maxX = Math.min(bBox[2], aBox[2]);
+        const maxY = Math.min(bBox[3], aBox[3]);
+        if (maxX > minX && maxY > minY) {
+          const inter = (maxX - minX) * (maxY - minY);
+          const areaB = (bBox[2] - bBox[0]) * (bBox[3] - bBox[1]);
+          const areaA = (aBox[2] - aBox[0]) * (aBox[3] - aBox[1]);
+          const union = areaB + areaA - inter;
+          iou = union > 0 ? inter / union : 0;
+          overlapArea = inter;
+        }
+      }
+
+      let score = 0;
+      if (bContains) score += 500;
+      if (aContains) score += 500;
+      score += iou * 300;
+      if (overlapArea > 0) score += 100;
+      if (isIdentical) score -= 1000;
+      if (typeof b.cloudCover === 'number') score -= b.cloudCover * 0.5;
+      if (typeof a.cloudCover === 'number') score -= a.cloudCover * 0.5;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestPair = [b, a];
+      }
+    }
+  }
+
+  return bestPair;
+}
+
 function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, number, number, number]): SatelliteScene {
   const sceneBbox = obs.bbox || fallbackBbox;
 
@@ -204,8 +262,7 @@ export async function buildHistoricalComparison(
     const bestBefore = beforeRes?.rankedBestObservation;
     const bestAfter = afterRes?.rankedBestObservation;
 
-    const fbBefore = fallbackBeforeScenes[0];
-    const fbAfter = fallbackAfterScenes[0];
+    const [fbBefore, fbAfter] = selectBestOverlappingPair(fallbackBeforeScenes, fallbackAfterScenes, lat, lng);
 
     const sceneBefore = bestBefore ? obsToScene(bestBefore, fallbackBbox) : (fbBefore ? { ...fbBefore } : null);
     const sceneAfter = bestAfter ? obsToScene(bestAfter, fallbackBbox) : (fbAfter ? { ...fbAfter } : null);
@@ -297,8 +354,9 @@ export async function buildHistoricalComparison(
     }),
   ]);
 
-  beforeScene = beforeScenes[0] || null;
-  afterScene = afterScenes[0] || null;
+  const [bestB, bestA] = selectBestOverlappingPair(beforeScenes, afterScenes, lat, lng);
+  beforeScene = bestB;
+  afterScene = bestA;
 
   return {
     locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,

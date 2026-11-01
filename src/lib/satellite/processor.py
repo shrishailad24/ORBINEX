@@ -125,6 +125,15 @@ def crop_to_aoi(img, scene_bbox, aoi_bbox, target_size=640):
         
     src_patch = img.crop((sx1, sy1, sx2, sy2))
     
+    # If the AOI footprint is significantly larger than the satellite scene (e.g. radius >= 50km),
+    # or if placing it on the canvas would shrink the scene into a tiny corner,
+    # scale the valid intersecting surface patch to fill the canvas so the user can view the actual imagery.
+    if (a_lng_span > s_lng_span * 0.8) or (a_lat_span > s_lat_span * 0.8):
+        canvas = src_patch.resize((out_w, out_h), Image.Resampling.LANCZOS)
+        if canvas.mode != "RGBA":
+            canvas = canvas.convert("RGBA")
+        return canvas
+
     # Destination pixel bounds on canonical AOI canvas
     dx1 = int(((i_min_lng - a_min_lng) / a_lng_span) * out_w)
     dx2 = int(((i_max_lng - a_min_lng) / a_lng_span) * out_w)
@@ -139,6 +148,14 @@ def crop_to_aoi(img, scene_bbox, aoi_bbox, target_size=640):
     dw = dx2 - dx1
     dh = dy2 - dy1
     
+    # If the computed destination occupies less than 65% of the canvas due to edge-cutting or large radius,
+    # expand the valid patch to fill the frame rather than showing mostly black empty margin
+    if (dw < out_w * 0.65) or (dh < out_h * 0.65):
+        canvas = src_patch.resize((out_w, out_h), Image.Resampling.LANCZOS)
+        if canvas.mode != "RGBA":
+            canvas = canvas.convert("RGBA")
+        return canvas
+
     if dw > 0 and dh > 0:
         resampled_patch = src_patch.resize((dw, dh), Image.Resampling.LANCZOS)
         if resampled_patch.mode != "RGBA":

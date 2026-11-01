@@ -220,12 +220,21 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
       };
 
       const targetTime = query.targetDate ? Date.parse(query.targetDate) : null;
+      const centerLng = query.lng ?? (aMinLng + aMaxLng) / 2;
+      const centerLat = query.lat ?? (aMinLat + aMaxLat) / 2;
 
       scenes.sort((a, b) => {
+        // Priority 1: Scene MUST contain the target center coordinate (lat, lng) if query.lat/lng provided
+        const containsA = a.bbox ? (a.bbox[0] <= centerLng && centerLng <= a.bbox[2] && a.bbox[1] <= centerLat && centerLat <= a.bbox[3]) : false;
+        const containsB = b.bbox ? (b.bbox[0] <= centerLng && centerLng <= b.bbox[2] && b.bbox[1] <= centerLat && centerLat <= b.bbox[3]) : false;
+        if (containsA !== containsB) {
+          return containsA ? -1 : 1;
+        }
+
         const coverA = getIntersectionRatio(a.bbox);
         const coverB = getIntersectionRatio(b.bbox);
 
-        // Strict priority: scenes fully covering the AOI (>= 85%) rank above edge-cut scenes
+        // Priority 2: Scenes fully covering the AOI (>= 85%) rank above edge-cut scenes
         const aFull = coverA >= 0.85;
         const bFull = coverB >= 0.85;
         if (aFull !== bFull) {
@@ -234,6 +243,13 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
 
         if (!aFull && Math.abs(coverB - coverA) > 0.15) {
           return coverB - coverA;
+        }
+
+        // Priority 3: Proximity to target center point
+        const distCenterA = a.bbox ? Math.hypot((a.bbox[0] + a.bbox[2]) / 2 - centerLng, (a.bbox[1] + a.bbox[3]) / 2 - centerLat) : 999;
+        const distCenterB = b.bbox ? Math.hypot((b.bbox[0] + b.bbox[2]) / 2 - centerLng, (b.bbox[1] + b.bbox[3]) / 2 - centerLat) : 999;
+        if (Math.abs(distCenterA - distCenterB) > 0.5) {
+          return distCenterA - distCenterB;
         }
 
         // Within scenes with equivalent AOI coverage, score by proximity to target date and lowest cloud cover

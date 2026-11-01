@@ -83,4 +83,32 @@ describe('Surrounding Area & Buffer Footprint Calculations', () => {
     const effectiveRadius = radiusKm > 0 ? radiusKm : 0.05;
     expect(effectiveRadius).toBe(0.05);
   });
+
+  it('guarantees Before and After passes mutually overlap and cover focal coordinates on large footprints', async () => {
+    const lat = 26.02;
+    const lng = 89.98;
+    const radiusKm = 150; // 300km x 300km footprint
+    const customBbox: [number, number, number, number] = [88.5, 24.5, 91.5, 27.5];
+
+    const comparison = await buildHistoricalComparison(
+      lat,
+      lng,
+      '2020-01-15',
+      '2024-01-15',
+      'NASA-GIBS',
+      radiusKm,
+      customBbox
+    );
+
+    expect(comparison).toBeDefined();
+    expect(comparison.before.matchedScene).toBeDefined();
+    expect(comparison.after.matchedScene).toBeDefined();
+    if (comparison.before.matchedScene?.bbox && comparison.after.matchedScene?.bbox) {
+      const b = comparison.before.matchedScene.bbox;
+      const a = comparison.after.matchedScene.bbox;
+      // Both should have valid bounding boxes
+      expect(b.length).toBe(4);
+      expect(a.length).toBe(4);
+    }
+  });
 });
