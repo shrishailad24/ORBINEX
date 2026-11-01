@@ -37,6 +37,7 @@ import {
 import { STRATEGIC_PRESETS, type StrategicLocationPreset } from '@/lib/satellite/historical-providers';
 import { type HistoricalComparisonPair, type SatelliteScene } from '@/lib/satellite/types';
 import { searchPlaces } from '@/lib/geosearch';
+import ProfessionalComparisonViewer from './ProfessionalComparisonViewer';
 
 const QUICK_GLOBAL_CHIPS = [
   { label: 'New York, USA', q: 'New York, USA', lat: 40.7128, lng: -74.0060, zoom: 12 },
@@ -2030,81 +2031,30 @@ export default function SatelliteComparePanel({
                 );
               })()}
 
-              {/* Interactive Split-Screen Swipe Comparison Slider */}
-              {comparison.before.matchedScene?.thumbnailUrl && comparison.after.matchedScene?.thumbnailUrl && (
-                <div className="p-2.5 rounded bg-black/60 border border-cyan-500/30 space-y-2">
+              {/* Professional Multi-Mode Synchronized Comparison Viewer (AI-06) */}
+              {(comparison.before.matchedScene || comparison.after.matchedScene) && (
+                <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px] text-slate-300 uppercase font-bold tracking-wider">
                     <span className="flex items-center gap-1.5 text-[#00E5FF]">
-                      <SlidersHorizontal className="w-3 h-3" />
-                      <span>SPLIT COMPARISON SLIDER</span>
+                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                      <span>PROFESSIONAL COMPARISON VIEWER (AI-06)</span>
                     </span>
-                    <span className="text-[9px] text-[#00E5FF] font-mono">{sliderPos}%</span>
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-[8px] font-mono">
+                      SYNC 1:1
+                    </span>
                   </div>
 
-                  {/* Swipe Viewer Container */}
-                  <div className="relative aspect-video rounded overflow-hidden select-none border border-white/20 bg-black cursor-ew-resize">
-                    {/* AFTER IMAGE (Base layer) */}
-                    <img
-                      src={getSceneImageUrl(comparison.after.matchedScene, true)}
-                      alt="After Scene"
-                      className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.dataset.retried && comparison.after.matchedScene?.thumbnailUrl) {
-                          target.dataset.retried = 'true';
-                          target.src = `/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`;
-                        }
-                      }}
-                    />
-
-                    {/* BEFORE IMAGE (Clipped overlay via clip-path) */}
-                    <img
-                      src={getSceneImageUrl(comparison.before.matchedScene, true)}
-                      alt="Before Scene"
-                      className="absolute inset-0 w-full h-full object-fill pointer-events-none"
-                      style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
-                      onError={(e) => {
-                        const target = e.currentTarget;
-                        if (!target.dataset.retried && comparison.before.matchedScene?.thumbnailUrl) {
-                          target.dataset.retried = 'true';
-                          target.src = `/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`;
-                        }
-                      }}
-                    />
-
-                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-cyan-400 text-[8px] font-bold pointer-events-none">
-                      BEFORE ({formatAcquisitionDate(comparison.before.matchedScene.datetime)})
-                    </div>
-
-                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[#00E5FF] text-[8px] font-bold pointer-events-none">
-                      AFTER ({formatAcquisitionDate(comparison.after.matchedScene.datetime)})
-                    </div>
-
-                    {/* Divider Line Handle */}
-                    <div
-                      className="absolute top-0 bottom-0 pointer-events-none border-r border-[#00E5FF]"
-                      style={{ left: `${sliderPos}%` }}
-                    >
-                      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#00E5FF] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_8px_#00E5FF]">
-                        ⇄
-                      </div>
-                    </div>
-
-                    {/* Drag Input */}
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={sliderPos}
-                      onChange={(e) => setSliderPos(parseInt(e.target.value))}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
-                    />
-                  </div>
-
-                  <div className="flex justify-between text-[7.5px] text-slate-400">
-                    <span>◀ Drag slider left (Reveal AFTER)</span>
-                    <span>Drag slider right (Reveal BEFORE) ▶</span>
-                  </div>
+                  <ProfessionalComparisonViewer
+                    beforeScene={comparison.before.matchedScene}
+                    afterScene={comparison.after.matchedScene}
+                    beforeImageUrl={getSceneImageUrl(comparison.before.matchedScene, true)}
+                    afterImageUrl={getSceneImageUrl(comparison.after.matchedScene, true)}
+                    aoiName={drawnAOI?.name || activeLocation.name}
+                    aoiBbox={drawnAOI?.bbox || currentBbox}
+                    platform={platform}
+                    alignmentResult={alignmentResult}
+                    onLocate={onLocate}
+                  />
                 </div>
               )}
 

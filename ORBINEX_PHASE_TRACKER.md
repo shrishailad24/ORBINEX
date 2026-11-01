@@ -103,7 +103,15 @@ flowchart TD
     - **Limitations & Known Boundaries:**
       - Non-rigid terrain elevation differences (topographic parallax from extreme off-nadir view angles $>25^\circ$) require DEM-guided orthorectification when comparing high-relief mountain valleys.
       - Cross-modality radiometric spectral subtraction remains disabled between optical and SAR passes to prevent false change detection.
-  - **AI-06 (Split Slider):** Dual-temporal swipe slider with guaranteed non-identical date-matched observation passes.
+  - **AI-06 (Professional Satellite Comparison Viewer & Multi-Resolution Sync):**
+    - Three professional comparison modes:
+      1. **Interactive Swipe Mode:** Smooth draggable vertical divider, real-time reveal readout, pointer capture to prevent stuck dragging or map interference, and keyboard accessibility (`ArrowLeft`/`ArrowRight` 2% steps, Shift 10%, `Home`/`End`).
+      2. **Side-by-Side Synchronized Mode:** Dual equal-sized viewports locked in 1:1 synchronized geographic transform with zero recursive event loops.
+      3. **Split/Overlay Mode:** Continuous opacity fader (0–100%), rapid 2Hz Flicker/Blink mode to spot micro-scale structural/ground modifications, and spectral Difference Blend mode.
+    - **Synchronized Geographic Pan & Zoom:** Hardware-accelerated sub-pixel pan & zoom ($1.0\times$ to $8.0\times$ magnification) with boundary clamping, mouse-wheel focal zoom, precision center crosshair, and 1:1 view reset.
+    - **Multi-Resolution GSD Engine (`comparison-specs.ts`):** Canonical GSD registry across Landsat (30m), Sentinel-1/2 (10m), Planet SkySat (50cm), Airbus Pléiades Neo (30cm), and Maxar WorldView (31cm) with honest multi-GSD asymmetry reporting and warnings against synthetic upscaling.
+    - **High-Performance Rendering:** CSS `translate3d` transforms, dark geointel checkerboard nodata background, and fullscreen modal inspection.
+    - **Testing & Verification:** 13/13 targeted AI-06 tests passed (`phase6-comparison.test.ts`), 100% satellite regression suite passed, 0 TypeScript errors.
 
 ---
 

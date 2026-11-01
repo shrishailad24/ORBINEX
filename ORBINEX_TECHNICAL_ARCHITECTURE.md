@@ -105,6 +105,33 @@ ORBINEX enforces clear physical distinctions between open-access satellite data 
 
 ---
 
+### 2.1 Professional Satellite Comparison Viewer Architecture (AI-06)
+
+ORBINEX features an integrated multi-mode satellite imagery comparison viewer (`ProfessionalComparisonViewer.tsx`) designed for sub-pixel change inspection across multi-temporal and multi-resolution acquisitions:
+
+1. **Interactive Swipe Mode:**
+   - Single synchronized canvas with a draggable vertical divider line.
+   - Hardware-accelerated CSS `clip-path: inset(0 ${100 - sliderPos}% 0 0)` revealing the historical baseline against the contemporary pass.
+   - Touch and pointer-capture binding to prevent sticky dragging or unintentional map panning.
+   - Keyboard accessibility (`ArrowLeft`/`ArrowRight` at 2% increments; Shift+Arrow at 10%; `Home`/`End` for 0%/100%).
+
+2. **Side-by-Side Synchronized Mode:**
+   - Dual equal-sized viewports showing BEFORE and AFTER scenes simultaneously.
+   - **Unified Viewport State:** Both viewports are driven by a single canonical transform `{ zoom: 1.0..8.0, panX, panY }`, guaranteeing frame-perfect synchronization with zero recursive event loops.
+   - Independent viewport telemetry badges showing acquisition date, sensor modality, native GSD, and provider.
+
+3. **Split/Overlay Mode (Fader & Flicker):**
+   - Continuous opacity slider (0% to 100%) for gradual layer cross-fading.
+   - **High-Frequency Flicker/Blink (2Hz):** Alternates between epochs to instantly highlight new building footprints, ground clearance, and shifted shoreline edges.
+   - **Spectral Difference Blend (`mix-blend-mode: difference`):** Cancels identical pixels and vividly illuminates surface transitions.
+
+4. **Multi-Resolution GSD Engine (`comparison-specs.ts`):**
+   - Automatically computes resolution asymmetry ratios between paired sensors (e.g. 10m Sentinel-2 vs 0.5m SkySat = $20.0\times$ ratio).
+   - Surfaces honest telemetry warnings stating that both sensors are projected onto a common comparison grid without synthetic upscaling.
+   - Clamps geographic viewport panning based on current zoom level to prevent imagery from disappearing beyond canvas boundaries.
+
+---
+
 ## 3. Specialist AI Models & Foundation Architecture
 
 ORBINEX does **not** train foundation models from scratch. It employs a **Hybrid Pretrained + Specialist Model Architecture**:
