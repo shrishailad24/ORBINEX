@@ -377,8 +377,8 @@ export async function buildHistoricalComparison(
       (sceneBefore.id === sceneAfter.id || (sceneBefore.thumbnailUrl && sceneBefore.thumbnailUrl === sceneAfter.thumbnailUrl))
     );
 
-    const hasBefore = Boolean(sceneBefore && sceneBefore.thumbnailUrl && (deltaDaysB == null || deltaDaysB <= 65) && !isIdent);
-    const hasAfter = Boolean(sceneAfter && sceneAfter.thumbnailUrl && (deltaDaysA == null || deltaDaysA <= 65) && !isIdent);
+    const hasBefore = Boolean(sceneBefore && sceneBefore.thumbnailUrl && !isIdent);
+    const hasAfter = Boolean(sceneAfter && sceneAfter.thumbnailUrl && !isIdent);
 
     return {
       locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,
@@ -450,8 +450,8 @@ export async function buildHistoricalComparison(
     (beforeScene.id === afterScene.id || (beforeScene.thumbnailUrl && beforeScene.thumbnailUrl === afterScene.thumbnailUrl))
   );
 
-  const hasValidBefore = Boolean(beforeScene && beforeScene.thumbnailUrl && (deltaDaysBefore == null || deltaDaysBefore <= 65) && !isIdentical);
-  const hasValidAfter = Boolean(afterScene && afterScene.thumbnailUrl && (deltaDaysAfter == null || deltaDaysAfter <= 65) && !isIdentical);
+  const hasValidBefore = Boolean(beforeScene && beforeScene.thumbnailUrl && !isIdentical);
+  const hasValidAfter = Boolean(afterScene && afterScene.thumbnailUrl && !isIdentical);
 
   let temporalGapDays: number | undefined;
   let temporalAnomalyWarning: string | undefined;
@@ -464,19 +464,15 @@ export async function buildHistoricalComparison(
 
   const unavailReasonBefore = !beforeScene
     ? 'No suitable satellite observation found for this date and AOI.'
-    : deltaDaysBefore && deltaDaysBefore > 65
-      ? `Nearest observation is ${deltaDaysBefore} days away from requested target date (${beforeScene.datetime.slice(0, 10)} vs ${cleanBefore}). Exceeds allowable temporal threshold.`
-      : isIdentical
-        ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
-        : undefined;
+    : isIdentical
+      ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
+      : undefined;
 
   const unavailReasonAfter = !afterScene
     ? 'No suitable satellite observation found for this date and AOI.'
-    : deltaDaysAfter && deltaDaysAfter > 65
-      ? `Nearest observation is ${deltaDaysAfter} days away from requested target date (${afterScene.datetime.slice(0, 10)} vs ${cleanAfter}). Exceeds allowable temporal threshold.`
-      : isIdentical
-        ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
-        : undefined;
+    : isIdentical
+      ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
+      : undefined;
 
   return {
     locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,

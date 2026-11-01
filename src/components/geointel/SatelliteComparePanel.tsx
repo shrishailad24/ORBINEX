@@ -273,6 +273,11 @@ export default function SatelliteComparePanel({
   const [reportSuccess, setReportSuccess] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
+  // AI-07: Analytical Multi-Spectral COG & Prithvi-EO-2.0 Earth Foundation Model state
+  const [runningAnalytical, setRunningAnalytical] = useState(false);
+  const [analyticalResult, setAnalyticalResult] = useState<any | null>(null);
+  const [analyticalError, setAnalyticalError] = useState<string | null>(null);
+
   // Automatic Geographical Identification for drawn AOI
   useEffect(() => {
     if (!drawnAOI) return;
@@ -556,6 +561,34 @@ export default function SatelliteComparePanel({
       setTimeout(() => setFeedbackRecorded(false), 4000);
     } catch (err) {
       console.error('[ORBINEX] Feedback failed:', err);
+    }
+  };
+
+  const handleRunAnalytical = async () => {
+    if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
+    setRunningAnalytical(true);
+    setAnalyticalError(null);
+    try {
+      const bbox = drawnAOI?.bbox || currentBbox;
+      const res = await fetch('/api/satellite/analytical', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          aoiBbox: bbox,
+          beforeScene: comparison.before.matchedScene,
+          afterScene: comparison.after.matchedScene,
+          modelVariant: 'Prithvi-EO-2.0-300M',
+          includeBenchmark: true,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAnalyticalResult(data);
+    } catch (err: any) {
+      console.error('[ORBINEX] Analytical inference failed:', err);
+      setAnalyticalError(err.message || 'Analytical multispectral processing failed');
+    } finally {
+      setRunningAnalytical(false);
     }
   };
 
@@ -2454,6 +2487,126 @@ export default function SatelliteComparePanel({
                         className="w-full py-1 text-[8px] font-bold uppercase rounded bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300"
                       >
                         Re-Analyze Observations
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* AI-07: Analytical Multispectral COG & Prithvi-EO-2.0 Earth Foundation Model */}
+              {comparison.before.matchedScene && comparison.after.matchedScene && (
+                <div className="p-2.5 rounded bg-black/60 border border-[#00E5FF]/40 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 uppercase font-bold tracking-wider">
+                    <span className="flex items-center gap-1.5 text-[#00E5FF]">
+                      <Sparkles className="w-3 h-3 text-[#00E5FF]" />
+                      <span>ANALYTICAL COG & PRITHVI-EO-2.0 (AI-07)</span>
+                    </span>
+                    {analyticalResult && (
+                      <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-[8px] font-mono border border-cyan-500/40">
+                        PROB {(analyticalResult.prithviFoundationModel?.changeProbability * 100).toFixed(0)}%
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[7.5px] text-slate-400 leading-relaxed">
+                    Native HTTP byte-range reader extracts individual surface reflectance bands (B02, B03, B04, B8A, B11, B12) from remote AWS S3 COGs without 340 MB downloads. Feeds calibrated multispectral cube into IBM-NASA Prithvi-EO-2.0 spatiotemporal ViT.
+                  </p>
+
+                  {analyticalError && (
+                    <div className="p-1.5 rounded bg-red-950/40 border border-red-500/30 text-red-300 text-[7.5px]">
+                      {analyticalError}
+                    </div>
+                  )}
+
+                  {!analyticalResult ? (
+                    <button
+                      onClick={handleRunAnalytical}
+                      disabled={runningAnalytical}
+                      className="w-full py-2 px-3 rounded bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/50 text-white font-bold text-[9px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_12px_rgba(0,229,255,0.2)] disabled:opacity-50"
+                    >
+                      {runningAnalytical ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin text-[#00E5FF]" />
+                          <span>READING COG TILES & INFERRING PRITHVI...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3 h-3 text-[#00E5FF]" />
+                          <span>RUN PRITHVI-EO-2.0 MULTISPECTRAL INFERENCE</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-2 text-[8px]">
+                      {/* Calibrated Spectral Deltas */}
+                      <div className="p-2 rounded bg-black/40 border border-white/10 space-y-1">
+                        <div className="text-[8px] font-bold text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+                          <span>Calibrated Spectral Indices (Native COG):</span>
+                          <span className="text-[7px] text-slate-400 font-mono">B02/B03/B04/B08/B11</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-1 pt-0.5 font-mono text-center">
+                          <div className="p-1 rounded bg-white/[0.03] border border-white/5">
+                            <div className="text-[7px] text-slate-400">ΔNDVI (Veg)</div>
+                            <div className={`font-bold ${analyticalResult.spectralIndices?.deltas?.deltaNdvi < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                              {analyticalResult.spectralIndices?.deltas?.deltaNdvi > 0 ? '+' : ''}{analyticalResult.spectralIndices?.deltas?.deltaNdvi?.toFixed(3)}
+                            </div>
+                          </div>
+                          <div className="p-1 rounded bg-white/[0.03] border border-white/5">
+                            <div className="text-[7px] text-slate-400">ΔNDWI (Water)</div>
+                            <div className={`font-bold ${analyticalResult.spectralIndices?.deltas?.deltaNdwi > 0 ? 'text-cyan-400' : 'text-slate-300'}`}>
+                              {analyticalResult.spectralIndices?.deltas?.deltaNdwi > 0 ? '+' : ''}{analyticalResult.spectralIndices?.deltas?.deltaNdwi?.toFixed(3)}
+                            </div>
+                          </div>
+                          <div className="p-1 rounded bg-white/[0.03] border border-white/5">
+                            <div className="text-[7px] text-slate-400">ΔNDII (Moist)</div>
+                            <div className="font-bold text-amber-300">
+                              {analyticalResult.spectralIndices?.deltas?.deltaNdii > 0 ? '+' : ''}{analyticalResult.spectralIndices?.deltas?.deltaNdii?.toFixed(3)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[7px] text-slate-300 pt-0.5">
+                          {analyticalResult.spectralIndices?.summary}
+                        </div>
+                      </div>
+
+                      {/* Prithvi-EO-2.0 Foundation Model Output */}
+                      <div className="p-2 rounded bg-cyan-950/20 border border-cyan-500/30 space-y-1">
+                        <div className="flex items-center justify-between text-cyan-300 font-bold">
+                          <span>IBM-NASA Prithvi-EO-2.0-300M:</span>
+                          <span className="text-emerald-400 font-mono font-bold">
+                            {(analyticalResult.prithviFoundationModel?.changeProbability * 100).toFixed(1)}% Change Prob
+                          </span>
+                        </div>
+                        <div className="text-[7.5px] text-slate-300 font-mono">
+                          Bands: Blue, Green, Red, Narrow NIR, SWIR1, SWIR2 (6 bands)
+                        </div>
+                        <div className="text-[7.5px] text-slate-400 flex items-center justify-between">
+                          <span>Latent Dim: {analyticalResult.prithviFoundationModel?.embeddingsDimension || 1024}</span>
+                          <span>Head: TerraTorch UperNet</span>
+                        </div>
+                      </div>
+
+                      {/* OSCD Benchmark Baseline */}
+                      {analyticalResult.benchmark && (
+                        <div className="p-1.5 rounded bg-white/[0.02] border border-white/5 text-[7px] font-mono text-slate-400 space-y-0.5">
+                          <div className="text-slate-300 font-bold flex items-center justify-between">
+                            <span>OSCD Baseline Split:</span>
+                            <span className="text-cyan-400">14 Train / 10 Test (Scene-Isolated)</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>IoU: {(analyticalResult.benchmark.iou * 100).toFixed(1)}% · F1: {(analyticalResult.benchmark.f1 * 100).toFixed(1)}%</span>
+                            <span>OA: {(analyticalResult.benchmark.overallAccuracy * 100).toFixed(1)}% · FAR: {(analyticalResult.benchmark.falseAlarmRate * 100).toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleRunAnalytical}
+                        disabled={runningAnalytical}
+                        className="w-full py-1 text-[7.5px] uppercase font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" />
+                        <span>Re-Compute Analytical COG & Model</span>
                       </button>
                     </div>
                   )}
