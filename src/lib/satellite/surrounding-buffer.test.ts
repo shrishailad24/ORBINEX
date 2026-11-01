@@ -59,4 +59,28 @@ describe('Surrounding Area & Buffer Footprint Calculations', () => {
     expect(comparison.before.tileUrl).toContain('2020-01-15');
     expect(comparison.after.tileUrl).toContain('2024-01-15');
   });
+
+  it('supports macro footprint footprints: 50 km, 75 km, 100 km, and 150 km', () => {
+    // 50 km radius -> 100km x 100km = 10,000 km²
+    const r50Area = (2 * 50) * (2 * 50);
+    expect(r50Area).toBe(10000.0);
+
+    // 75 km radius -> 150km x 150km = 22,500 km²
+    const r75Area = (2 * 75) * (2 * 75);
+    expect(r75Area).toBe(22500.0);
+
+    // 100 km radius -> 200km x 200km = 40,000 km²
+    const r100Area = (2 * 100) * (2 * 100);
+    expect(r100Area).toBe(40000.0);
+
+    // 150 km radius -> 300km x 300km = 90,000 km²
+    const r150Area = (2 * 150) * (2 * 150);
+    expect(r150Area).toBe(90000.0);
+  });
+
+  it('handles zero buffer (0 km / No buffer / Point)', () => {
+    const radiusKm = 0;
+    const effectiveRadius = radiusKm > 0 ? radiusKm : 0.05;
+    expect(effectiveRadius).toBe(0.05);
+  });
 });

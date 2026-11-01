@@ -141,11 +141,11 @@ export default function SatelliteComparePanel({
   }, [drawnAOI?.id]);
 
   const currentBbox = useMemo<[number, number, number, number]>(() => {
-    // Always recompute from surroundingRadiusKm + activeLocation.
-    // Never fall back to drawnAOI.bbox (which is the full Sentinel tile bbox, ~100km²).
-    const deltaLat = surroundingRadiusKm / 111.32;
+    // If radius is 0 (No buffer), use a minimal micro-envelope (~50m) so imagery queries remain well-formed
+    const effectiveRadius = surroundingRadiusKm > 0 ? surroundingRadiusKm : 0.05;
+    const deltaLat = effectiveRadius / 111.32;
     const cosLat = Math.cos((activeLocation.lat * Math.PI) / 180);
-    const deltaLng = surroundingRadiusKm / (111.32 * Math.max(0.01, cosLat));
+    const deltaLng = effectiveRadius / (111.32 * Math.max(0.01, cosLat));
     const lng1 = Number((activeLocation.lng - deltaLng).toFixed(6));
     const lat1 = Number((activeLocation.lat - deltaLat).toFixed(6));
     const lng2 = Number((activeLocation.lng + deltaLng).toFixed(6));
@@ -159,9 +159,10 @@ export default function SatelliteComparePanel({
   }, [activeLocation.lat, activeLocation.lng, surroundingRadiusKm]);
 
   const computeBufferAOI = useCallback((lat: number, lng: number, radiusKm: number, label?: string) => {
-    const deltaLat = radiusKm / 111.32;
+    const effectiveRadius = radiusKm > 0 ? radiusKm : 0.05;
+    const deltaLat = effectiveRadius / 111.32;
     const cosLat = Math.cos((lat * Math.PI) / 180);
-    const deltaLng = radiusKm / (111.32 * Math.max(0.01, cosLat));
+    const deltaLng = effectiveRadius / (111.32 * Math.max(0.01, cosLat));
     const lng1 = Number((lng - deltaLng).toFixed(6));
     const lat1 = Number((lat - deltaLat).toFixed(6));
     const lng2 = Number((lng + deltaLng).toFixed(6));
@@ -170,7 +171,7 @@ export default function SatelliteComparePanel({
     const maxLng = Math.max(lng1, lng2);
     const minLat = Math.min(lat1, lat2);
     const maxLat = Math.max(lat1, lat2);
-    const areaKm2 = Number(((2 * radiusKm) * (2 * radiusKm)).toFixed(2));
+    const areaKm2 = radiusKm > 0 ? Number(((2 * radiusKm) * (2 * radiusKm)).toFixed(2)) : 0.01;
     const bbox: [number, number, number, number] = [minLng, minLat, maxLng, maxLat];
     const coords = [
       [minLng, minLat],
@@ -181,7 +182,7 @@ export default function SatelliteComparePanel({
     ];
     return {
       id: `aoi-buffer-${lat.toFixed(4)}-${lng.toFixed(4)}`,
-      name: label || `Target AOI [${lat.toFixed(3)}°, ${lng.toFixed(3)}°] (${areaKm2} km²)`,
+      name: label || `Target AOI [${lat.toFixed(3)}°, ${lng.toFixed(3)}°] (${radiusKm === 0 ? 'Point / Exact' : `${areaKm2} km²`})`,
       kind: 'rectangle',
       coords,
       bbox,
@@ -192,13 +193,18 @@ export default function SatelliteComparePanel({
   }, []);
 
   const getRadiusZoom = (r: number) => {
+    if (r <= 0) return 17.5;
     if (r <= 0.5) return 16.5;
     if (r <= 1.0) return 15.5;
     if (r <= 3.0) return 14.5;
     if (r <= 5.0) return 13.5;
     if (r <= 10.0) return 12.2;
     if (r <= 20.0) return 11.0;
-    return 10.0;
+    if (r <= 35.0) return 10.0;
+    if (r <= 50.0) return 9.0;
+    if (r <= 75.0) return 8.2;
+    if (r <= 100.0) return 7.5;
+    return 6.5;
   };
 
   const handleUpdateRadius = (newRadiusKm: number) => {
@@ -899,7 +905,9 @@ export default function SatelliteComparePanel({
                 <span className="tracking-widest">SURROUNDING AREA / FOOTPRINT</span>
               </span>
               <span className="px-2 py-0.5 rounded bg-[#00E5FF]/15 border border-[#00E5FF]/40 text-[#00E5FF] text-[9px] font-bold font-mono">
-                ±{surroundingRadiusKm.toFixed(1)} km ({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)
+                {surroundingRadiusKm === 0
+                  ? 'No Buffer (Exact Point / AOI)'
+                  : `±${surroundingRadiusKm.toFixed(1)} km (${(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)`}
               </span>
             </div>
 
@@ -939,52 +947,93 @@ export default function SatelliteComparePanel({
               Adjust the surrounding footprint around the selected observation point for Before & After comparison.
             </p>
 
-            {/* Quick preset buffer pills */}
-            <div className="grid grid-cols-5 gap-1 text-[8.5px]">
-              {[
-                { r: 0.5, label: '0.5 km', desc: 'Plot' },
-                { r: 1.0, label: '1 km', desc: 'Campus' },
-                { r: 5.0, label: '5 km', desc: 'Town' },
-                { r: 10.0, label: '10 km', desc: 'District' },
-                { r: 25.0, label: '25 km', desc: 'Region' },
-              ].map((item) => (
-                <button
-                  key={item.r}
-                  type="button"
-                  onClick={() => handleUpdateRadius(item.r)}
-                  className={`py-1 px-1 rounded flex flex-col items-center justify-center border transition-all ${
-                    Math.abs(surroundingRadiusKm - item.r) < 0.1
-                      ? 'bg-[#00E5FF]/25 border-[#00E5FF] text-white shadow-[0_0_10px_rgba(0,229,255,0.3)]'
-                      : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/30 hover:text-white'
-                  }`}
-                >
-                  <span className="font-bold">{item.label}</span>
-                  <span className="text-[7px] text-slate-400">{item.desc}</span>
-                </button>
-              ))}
+            {/* Quick preset buffer pills (Includes No buffer, 50, 75, 100, 150 km) */}
+            <div className="space-y-1">
+              <div className="text-[7.5px] font-bold uppercase tracking-wider text-slate-400">Quick Footprint Presets:</div>
+              <div className="grid grid-cols-5 gap-1 text-[8px]">
+                {[
+                  { r: 0, label: 'No Buffer', desc: 'Exact' },
+                  { r: 0.5, label: '0.5 km', desc: 'Plot' },
+                  { r: 1.0, label: '1 km', desc: 'Campus' },
+                  { r: 5.0, label: '5 km', desc: 'Town' },
+                  { r: 10.0, label: '10 km', desc: 'District' },
+                  { r: 25.0, label: '25 km', desc: 'Region' },
+                  { r: 50.0, label: '50 km', desc: 'Province' },
+                  { r: 75.0, label: '75 km', desc: 'Corridor' },
+                  { r: 100.0, label: '100 km', desc: 'Mega-Area' },
+                  { r: 150.0, label: '150 km', desc: 'State' },
+                ].map((item) => (
+                  <button
+                    key={item.r}
+                    type="button"
+                    onClick={() => handleUpdateRadius(item.r)}
+                    className={`py-1 px-1 rounded flex flex-col items-center justify-center border transition-all ${
+                      Math.abs(surroundingRadiusKm - item.r) < 0.1
+                        ? 'bg-[#00E5FF]/25 border-[#00E5FF] text-white shadow-[0_0_10px_rgba(0,229,255,0.3)]'
+                        : 'bg-black/40 border-white/10 text-slate-400 hover:border-white/30 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-bold truncate">{item.label}</span>
+                    <span className="text-[6.5px] text-slate-400 truncate">{item.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Continuous range slider */}
+            {/* Custom Exact Number Input */}
+            <div className="flex items-center justify-between p-1.5 rounded bg-black/50 border border-white/10 text-[8.5px]">
+              <span className="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                <span>Custom Footprint Radius (No.):</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  max="300"
+                  step="0.5"
+                  value={surroundingRadiusKm}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                    if (!isNaN(val) && val >= 0) {
+                      handleUpdateRadius(val);
+                    }
+                  }}
+                  className="w-16 bg-black/80 border border-white/20 rounded px-1.5 py-0.5 text-white text-[9.5px] font-mono font-bold text-right focus:outline-none focus:border-[#00E5FF]"
+                  placeholder="km"
+                />
+                <span className="text-slate-400 font-mono text-[9px]">km</span>
+              </div>
+            </div>
+
+            {/* Continuous range slider (0 km to 100 km) */}
             <div className="space-y-1">
               <div className="flex items-center justify-between text-[9px] text-slate-300">
-                <span className="text-slate-400">Surrounding Radius</span>
+                <span className="text-slate-400">Continuous Radius Slider</span>
                 <span className="text-white font-mono font-bold text-[9.5px]">
-                  ±{surroundingRadiusKm.toFixed(1)} km <span className="text-slate-400 font-normal">({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)</span>
+                  {surroundingRadiusKm === 0 ? (
+                    <span className="text-cyan-300">0 km (No Buffer / Exact)</span>
+                  ) : (
+                    <>
+                      ±{surroundingRadiusKm.toFixed(1)} km <span className="text-slate-400 font-normal">({(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²)</span>
+                    </>
+                  )}
                 </span>
               </div>
               <input
                 type="range"
-                min="0.5"
-                max="35.0"
+                min="0"
+                max="100.0"
                 step="0.5"
                 value={surroundingRadiusKm}
                 onChange={(e) => handleUpdateRadius(parseFloat(e.target.value))}
                 className="w-full h-1.5 bg-black/60 rounded-lg appearance-none cursor-pointer accent-[#00E5FF]"
               />
               <div className="flex justify-between text-[7px] text-slate-500 font-mono">
-                <span>0.5 km (Small Plot)</span>
-                <span>15 km</span>
-                <span>35 km (Metropolitan)</span>
+                <span>0 km (No Buffer)</span>
+                <span>25 km</span>
+                <span>50 km</span>
+                <span>75 km</span>
+                <span>100 km (Mega)</span>
               </div>
             </div>
 
@@ -992,15 +1041,21 @@ export default function SatelliteComparePanel({
             <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded bg-black/50 border border-white/5 text-center font-mono">
               <div>
                 <div className="text-[7.5px] text-slate-400 uppercase">Footprint Area</div>
-                <div className="text-[10px] text-white font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²</div>
+                <div className="text-[10px] text-white font-bold">
+                  {surroundingRadiusKm === 0 ? 'Point / Exact' : `${(4 * surroundingRadiusKm * surroundingRadiusKm).toFixed(1)} km²`}
+                </div>
               </div>
               <div>
                 <div className="text-[7.5px] text-slate-400 uppercase">Hectares</div>
-                <div className="text-[10px] text-[#00E5FF] font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} ha</div>
+                <div className="text-[10px] text-[#00E5FF] font-bold">
+                  {surroundingRadiusKm === 0 ? 'Point' : `${(4 * surroundingRadiusKm * surroundingRadiusKm * 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} ha`}
+                </div>
               </div>
               <div>
                 <div className="text-[7.5px] text-slate-400 uppercase">Acres</div>
-                <div className="text-[10px] text-emerald-400 font-bold">{(4 * surroundingRadiusKm * surroundingRadiusKm * 247.105).toLocaleString(undefined, { maximumFractionDigits: 0 })} ac</div>
+                <div className="text-[10px] text-emerald-400 font-bold">
+                  {surroundingRadiusKm === 0 ? 'Point' : `${(4 * surroundingRadiusKm * surroundingRadiusKm * 247.105).toLocaleString(undefined, { maximumFractionDigits: 0 })} ac`}
+                </div>
               </div>
             </div>
 
