@@ -75,9 +75,11 @@ export function parseSTACFeature(feature: any, defaultPlatform?: SatellitePlatfo
     thumbnailUrl = normalizeAssetHref(assets.thumbnail?.href || assets.preview?.href);
     visualUrl = normalizeAssetHref(assets.vv?.href || assets.vh?.href || thumbnailUrl);
   } else {
-    // Landsat
-    thumbnailUrl = normalizeAssetHref(assets.thumbnail?.href || assets.reduced_resolution_browse?.href);
-    visualUrl = normalizeAssetHref(assets.visual?.href || assets.SR_B4?.href || thumbnailUrl);
+    // Landsat: USGS direct S3 assets require AWS Requester-Pays credentials which return 403 Forbidden
+    // for unauthenticated public requests. Microsoft Planetary Computer provides public true-color PNG previews.
+    const pcPreviewUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${feature.id}&assets=red&assets=green&assets=blue&color_formula=gamma%20RGB%202.7,%20saturation%201.5,%20sigmoidal%20RGB%2015%200.55&format=png`;
+    thumbnailUrl = pcPreviewUrl;
+    visualUrl = pcPreviewUrl;
   }
 
   const quadCoords = bboxToQuadCoordinates(validBbox);

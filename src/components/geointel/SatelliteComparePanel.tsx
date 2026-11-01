@@ -752,7 +752,7 @@ export default function SatelliteComparePanel({
                 }`}
               >
                 <Crosshair className="w-3 h-3 text-[#00E5FF]" />
-                <span>${isPickingPoint ? 'Click Globe...' : 'Pick Point'}</span>
+                <span>{isPickingPoint ? 'Click Globe...' : 'Pick Point'}</span>
               </button>
               <button
                 type="button"
