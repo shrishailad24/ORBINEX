@@ -49,7 +49,9 @@ export async function GET(req: Request) {
   if (rawUrl.includes('{z}') || rawUrl.includes('{x}')) {
     const targetBbox = aoiBbox || sceneBbox || [-180, -90, 180, 90];
     const [minLng, minLat, maxLng, maxLat] = targetBbox;
-    const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=${targetWidth},${targetWidth}&f=image`;
+    const aspect = Math.abs(maxLng - minLng) / Math.max(1e-6, Math.abs(maxLat - minLat));
+    const targetHeight = Math.max(64, Math.min(2048, Math.round(targetWidth / (aspect || 1.0))));
+    const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=${targetWidth},${targetHeight}&f=image`;
     const exportRes = await fetch(exportUrl);
     if (!exportRes.ok) {
       return NextResponse.json({ error: 'Failed to export basemap raster' }, { status: 502 });

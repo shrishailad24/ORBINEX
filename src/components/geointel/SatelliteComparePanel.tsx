@@ -213,44 +213,21 @@ export default function SatelliteComparePanel({
     const [minLng, minLat, maxLng, maxLat] = currentBbox || [0, 0, 0, 0];
     const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
 
-    // Sub-meter High-Res Reference Basemap or VHR commercial platforms without direct raster:
-    if (
-      platform === 'High-Res' ||
-      platform === 'SkySat' ||
-      platform === 'Pléiades Neo' ||
-      !scene.thumbnailUrl ||
-      scene.thumbnailUrl.includes('{z}') ||
-      scene.thumbnailUrl.includes('{x}')
-    ) {
-      if (scene.thumbnailUrl && !scene.thumbnailUrl.includes('{z}') && !scene.thumbnailUrl.includes('{x}') && platform !== 'High-Res') {
-        if (cropped && scene.bbox && currentBbox) {
-          const params = new URLSearchParams({
-            url: scene.thumbnailUrl,
-            stretch: contrastStretch ? 'true' : 'false',
-            platform: scene.platform,
-            width: '640',
-            sceneBbox: scene.bbox.join(','),
-            aoiBbox: currentBbox.join(','),
-          });
-          return `/api/satellite/process?${params.toString()}`;
-        }
-        return `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`;
-      }
-      return `/api/satellite/asset?url=${encodeURIComponent(highResExportUrl)}`;
-    }
+    const rawUrl = scene.thumbnailUrl || highResExportUrl;
 
-    if (cropped && scene.thumbnailUrl && scene.bbox && currentBbox) {
+    if (cropped && rawUrl && scene.bbox && currentBbox) {
       const params = new URLSearchParams({
-        url: scene.thumbnailUrl,
+        url: rawUrl,
         stretch: contrastStretch ? 'true' : 'false',
-        platform: scene.platform,
+        platform: scene.platform || platform,
         width: '640',
         sceneBbox: scene.bbox.join(','),
         aoiBbox: currentBbox.join(','),
       });
       return `/api/satellite/process?${params.toString()}`;
     }
-    return scene.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
+
+    return `/api/satellite/asset?url=${encodeURIComponent(rawUrl)}`;
   }, [currentBbox, surroundingRadiusKm, platform, contrastStretch]);
 
   // Global search state
@@ -459,50 +436,6 @@ export default function SatelliteComparePanel({
     setError(null);
     setProcessedImageUrl(null);
     try {
-      if (platform === 'High-Res') {
-        const [minLng, minLat, maxLng, maxLat] = currentBbox;
-        const cleanBefore = beforeDate.split('T')[0];
-        const cleanAfter = afterDate.split('T')[0];
-        const exportUrlBefore = `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanBefore}`;
-        const exportUrlAfter = `https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/GoogleMapsCompatible/{z}/{y}/{x}?date=${cleanAfter}`;
-        const rawExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
-        
-        const syntheticScene: SatelliteScene = {
-          id: `highres-${Date.now()}`,
-          platform: 'High-Res',
-          modality: 'optical',
-          collection: 'World_Imagery_Wayback_VHR',
-          datetime: afterDate,
-          cloudCover: 0,
-          bbox: currentBbox,
-          coordinates: [
-            [minLng, maxLat],
-            [maxLng, maxLat],
-            [maxLng, minLat],
-            [minLng, minLat],
-          ],
-          thumbnailUrl: rawExportUrl,
-          visualUrl: rawExportUrl,
-          metadata: { resolutionMeters: 0.5, instrument: 'WorldView / Airborne Ortho 0.5m' },
-        };
-        setComparison({
-          locationName: activeLocation.name,
-          center: { lat: activeLocation.lat, lng: activeLocation.lng },
-          zoom: getRadiusZoom(surroundingRadiusKm),
-          before: {
-            targetDate: beforeDate,
-            matchedScene: { ...syntheticScene, id: 'highres-before', datetime: beforeDate, thumbnailUrl: rawExportUrl },
-            tileUrl: exportUrlBefore,
-          },
-          after: {
-            targetDate: afterDate,
-            matchedScene: { ...syntheticScene, id: 'highres-after', datetime: afterDate, thumbnailUrl: rawExportUrl },
-            tileUrl: exportUrlAfter,
-          },
-        });
-        setLoading(false);
-        return;
-      }
       const params = new URLSearchParams({
         lat: activeLocation.lat.toString(),
         lng: activeLocation.lng.toString(),
@@ -1616,13 +1549,12 @@ export default function SatelliteComparePanel({
                     <img
                       src={getSceneImageUrl(comparison.after.matchedScene, true)}
                       alt="After Scene"
-                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      className="absolute inset-0 w-full h-full object-fill pointer-events-none"
                       onError={(e) => {
                         const target = e.currentTarget;
-                        if (currentBbox && !target.dataset.retried) {
+                        if (!target.dataset.retried && comparison.after.matchedScene?.thumbnailUrl) {
                           target.dataset.retried = 'true';
-                          const [minLng, minLat, maxLng, maxLat] = currentBbox;
-                          target.src = `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`)}`;
+                          target.src = `/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`;
                         }
                       }}
                     />
@@ -1631,14 +1563,13 @@ export default function SatelliteComparePanel({
                     <img
                       src={getSceneImageUrl(comparison.before.matchedScene, true)}
                       alt="Before Scene"
-                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      className="absolute inset-0 w-full h-full object-fill pointer-events-none"
                       style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
                       onError={(e) => {
                         const target = e.currentTarget;
-                        if (currentBbox && !target.dataset.retried) {
+                        if (!target.dataset.retried && comparison.before.matchedScene?.thumbnailUrl) {
                           target.dataset.retried = 'true';
-                          const [minLng, minLat, maxLng, maxLat] = currentBbox;
-                          target.src = `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`)}`;
+                          target.src = `/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`;
                         }
                       }}
                     />

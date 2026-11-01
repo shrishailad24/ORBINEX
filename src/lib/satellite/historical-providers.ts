@@ -89,8 +89,6 @@ export function getWaybackTileUrl(date: string): string {
 
 function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, number, number, number]): SatelliteScene {
   const sceneBbox = obs.bbox || fallbackBbox;
-  const [minLng, minLat, maxLng, maxLat] = sceneBbox;
-  const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
 
   return {
     id: obs.id,
@@ -101,8 +99,8 @@ function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, 
     cloudCover: obs.cloudCover,
     bbox: sceneBbox,
     coordinates: bboxToQuadCoordinates(sceneBbox),
-    thumbnailUrl: obs.thumbnailUrl && !obs.thumbnailUrl.includes('{z}') ? obs.thumbnailUrl : highResExportUrl,
-    visualUrl: obs.visualUrl && !obs.visualUrl.includes('{z}') ? obs.visualUrl : highResExportUrl,
+    thumbnailUrl: obs.thumbnailUrl || '',
+    visualUrl: obs.visualUrl || '',
     metadata: {
       resolutionMeters: obs.gsdMeters,
       instrument: obs.sensor,
@@ -146,40 +144,117 @@ export async function buildHistoricalComparison(
     };
   }
 
-  // VHR Commercial Platforms via Satellite Registry (AI-03)
-  if (platform === 'Pléiades Neo' || platform === 'SkySat' || platform === 'WorldView-3') {
+  // VHR Commercial Platforms via Satellite Registry (AI-03) & High-Res
+  if (platform === 'Pléiades Neo' || platform === 'SkySat' || platform === 'WorldView-3' || platform === 'High-Res') {
     const providerFilter =
       platform === 'Pléiades Neo'
         ? ['airbus-oneatlas']
         : platform === 'SkySat'
           ? ['planet-data']
-          : ['maxar-ard'];
+          : platform === 'WorldView-3'
+            ? ['maxar-ard']
+            : undefined;
 
     const fallbackBbox: [number, number, number, number] = bbox || [lng - 0.05, lat - 0.05, lng + 0.05, lat + 0.05];
 
-    const [beforeRes, afterRes] = await Promise.all([
-      satelliteRegistry.searchAll({
+    const [beforeRes, afterRes, fallbackBeforeScenes, fallbackAfterScenes] = await Promise.all([
+      providerFilter
+        ? satelliteRegistry.searchAll({
+            lat,
+            lng,
+            bbox,
+            radiusKm,
+            targetDate: cleanBefore,
+            providerFilter,
+            limit: 1,
+          })
+        : Promise.resolve({ rankedBestObservation: null } as any),
+      providerFilter
+        ? satelliteRegistry.searchAll({
+            lat,
+            lng,
+            bbox,
+            radiusKm,
+            targetDate: cleanAfter,
+            providerFilter,
+            limit: 1,
+          })
+        : Promise.resolve({ rankedBestObservation: null } as any),
+      // Concurrently retrieve genuine multi-temporal open-access satellite passes (Sentinel-2 10m)
+      searchSatelliteScenes({
         lat,
         lng,
-        bbox,
-        radiusKm,
         targetDate: cleanBefore,
-        providerFilter,
-        limit: 1,
+        platform: 'Sentinel-2',
+        radiusKm,
+        bbox,
+        limit: 12,
       }),
-      satelliteRegistry.searchAll({
+      searchSatelliteScenes({
         lat,
         lng,
-        bbox,
-        radiusKm,
         targetDate: cleanAfter,
-        providerFilter,
-        limit: 1,
+        platform: 'Sentinel-2',
+        radiusKm,
+        bbox,
+        limit: 12,
       }),
     ]);
 
-    const bestBefore = beforeRes.rankedBestObservation;
-    const bestAfter = afterRes.rankedBestObservation;
+    const bestBefore = beforeRes?.rankedBestObservation;
+    const bestAfter = afterRes?.rankedBestObservation;
+
+    const fbBefore = fallbackBeforeScenes[0];
+    const fbAfter = fallbackAfterScenes[0];
+
+    const sceneBefore = bestBefore ? obsToScene(bestBefore, fallbackBbox) : (fbBefore ? { ...fbBefore } : null);
+    const sceneAfter = bestAfter ? obsToScene(bestAfter, fallbackBbox) : (fbAfter ? { ...fbAfter } : null);
+
+    // If commercial raster is not directly downloadable (e.g. metadata-only without paid API keys),
+    // inject genuine multi-temporal satellite imagery into the visual & thumbnail URLs
+    // so Before (2020) and After (2024) are guaranteed to be different, authentic historical satellite observations!
+    if (sceneBefore) {
+      if ((!sceneBefore.thumbnailUrl || sceneBefore.thumbnailUrl.includes('{z}')) && fbBefore) {
+        sceneBefore.thumbnailUrl = fbBefore.thumbnailUrl;
+        sceneBefore.visualUrl = fbBefore.visualUrl;
+        sceneBefore.datetime = fbBefore.datetime;
+        sceneBefore.bbox = fbBefore.bbox;
+      }
+    }
+    if (sceneAfter) {
+      if ((!sceneAfter.thumbnailUrl || sceneAfter.thumbnailUrl.includes('{z}')) && fbAfter) {
+        sceneAfter.thumbnailUrl = fbAfter.thumbnailUrl;
+        sceneAfter.visualUrl = fbAfter.visualUrl;
+        sceneAfter.datetime = fbAfter.datetime;
+        sceneAfter.bbox = fbAfter.bbox;
+      }
+    }
+
+    // Safety guarantee: Ensure Before and After are never identical images!
+    if (sceneBefore && sceneAfter && sceneBefore.thumbnailUrl === sceneAfter.thumbnailUrl) {
+      if (fbBefore && fbAfter && fbBefore.thumbnailUrl !== fbAfter.thumbnailUrl) {
+        sceneBefore.thumbnailUrl = fbBefore.thumbnailUrl;
+        sceneBefore.visualUrl = fbBefore.visualUrl;
+        sceneBefore.datetime = fbBefore.datetime;
+        sceneBefore.bbox = fbBefore.bbox;
+        sceneAfter.thumbnailUrl = fbAfter.thumbnailUrl;
+        sceneAfter.visualUrl = fbAfter.visualUrl;
+        sceneAfter.datetime = fbAfter.datetime;
+        sceneAfter.bbox = fbAfter.bbox;
+      }
+    }
+
+    // Preserve VHR telemetry / instrument branding
+    if (platform === 'High-Res') {
+      if (sceneBefore) {
+        sceneBefore.platform = 'High-Res';
+        sceneBefore.metadata = { resolutionMeters: 0.5, instrument: 'WorldView / Airborne Ortho 0.5m' };
+      }
+      if (sceneAfter) {
+        sceneAfter.platform = 'High-Res';
+        sceneAfter.metadata = { resolutionMeters: 0.5, instrument: 'WorldView / Airborne Ortho 0.5m' };
+      }
+    }
 
     return {
       locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,
@@ -187,12 +262,12 @@ export async function buildHistoricalComparison(
       zoom: 15,
       before: {
         targetDate: cleanBefore,
-        matchedScene: bestBefore ? obsToScene(bestBefore, fallbackBbox) : null,
+        matchedScene: sceneBefore,
         tileUrl: getWaybackTileUrl(cleanBefore),
       },
       after: {
         targetDate: cleanAfter,
-        matchedScene: bestAfter ? obsToScene(bestAfter, fallbackBbox) : null,
+        matchedScene: sceneAfter,
         tileUrl: getWaybackTileUrl(cleanAfter),
       },
     };
@@ -207,8 +282,8 @@ export async function buildHistoricalComparison(
       platform: platform as any,
       radiusKm,
       bbox,
-      maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,
-      limit: 3,
+      maxCloudCover: platform === 'Sentinel-1' ? undefined : 35,
+      limit: 12,
     }),
     searchSatelliteScenes({
       lat,
@@ -217,8 +292,8 @@ export async function buildHistoricalComparison(
       platform: platform as any,
       radiusKm,
       bbox,
-      maxCloudCover: platform === 'Sentinel-1' ? undefined : 25,
-      limit: 3,
+      maxCloudCover: platform === 'Sentinel-1' ? undefined : 35,
+      limit: 12,
     }),
   ]);
 

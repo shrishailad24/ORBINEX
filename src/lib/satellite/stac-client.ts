@@ -134,7 +134,7 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
     datetime = `${query.startDate}T00:00:00Z/${query.endDate}T23:59:59Z`;
   } else if (query.targetDate) {
     const target = new Date(query.targetDate);
-    const windowDays = 45; // 45-day window to maximize finding cloud-free scenes
+    const windowDays = 60; // 60-day window to maximize finding cloud-free scenes
     const from = new Date(target.getTime() - windowDays * 86400000).toISOString().split('T')[0];
     const to = new Date(target.getTime() + windowDays * 86400000).toISOString().split('T')[0];
     datetime = `${from}T00:00:00Z/${to}T23:59:59Z`;
@@ -149,17 +149,22 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
     collections,
     bbox,
     datetime,
-    limit: query.limit || 12,
+    limit: Math.max(query.limit || 16, 16),
     sortby: [{ field: 'properties.datetime', direction: 'desc' }],
   };
 
+  // Exclude Landsat-7 with permanent Scan Line Corrector hardware failure
+  if (query.platform === 'Landsat-8' || query.platform === 'Landsat-9' || query.platform === 'Landsat') {
+    payload.query = { platform: { in: ['landsat-8', 'landsat-9'] } };
+  }
+
   // Cloud cover filter (only for optical)
   if (query.maxCloudCover != null && query.platform !== 'Sentinel-1') {
-    payload.query = { 'eo:cloud_cover': { lte: query.maxCloudCover } };
+    payload.query = { ...(payload.query || {}), 'eo:cloud_cover': { lte: query.maxCloudCover } };
   }
 
   try {
-    const res = await fetch(STAC_ENDPOINT, {
+    let res = await fetch(STAC_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -171,8 +176,23 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
       return [];
     }
 
-    const data = await res.json();
-    const rawFeatures = data.features || [];
+    let data = await res.json();
+    let rawFeatures = data.features || [];
+
+    // If initial query with strict cloud cover returned 0 scenes, retry without cloud filter
+    if (rawFeatures.length === 0 && payload.query?.['eo:cloud_cover']) {
+      delete payload.query['eo:cloud_cover'];
+      const retryRes = await fetch(STAC_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (retryRes.ok) {
+        data = await retryRes.json();
+        rawFeatures = data.features || [];
+      }
+    }
 
     const scenes: SatelliteScene[] = [];
     for (const f of rawFeatures) {
@@ -183,7 +203,7 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
     }
 
     // Prioritize scenes that provide optimal coverage over the requested AOI.
-    // Scenes with high AOI intersection (>70%) must rank above scenes that only clip an edge.
+    // Scenes with high AOI intersection (>85%) must rank above scenes that only clip an edge.
     if (query.bbox) {
       const [aMinLng, aMinLat, aMaxLng, aMaxLat] = query.bbox;
       const aArea = Math.max(1e-9, (aMaxLng - aMinLng) * (aMaxLat - aMinLat));
@@ -205,20 +225,26 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
         const coverA = getIntersectionRatio(a.bbox);
         const coverB = getIntersectionRatio(b.bbox);
 
-        // If one scene covers substantially more of the AOI (e.g. >= 70% vs edge clip), prefer higher coverage
-        const coverDiff = coverB - coverA;
-        if (Math.abs(coverDiff) > 0.20) {
-          return coverDiff;
+        // Strict priority: scenes fully covering the AOI (>= 85%) rank above edge-cut scenes
+        const aFull = coverA >= 0.85;
+        const bFull = coverB >= 0.85;
+        if (aFull !== bFull) {
+          return aFull ? -1 : 1;
         }
 
-        // Within comparable coverage, sort by proximity to targetDate
-        if (targetTime) {
-          const diffA = Math.abs(Date.parse(a.datetime) - targetTime);
-          const diffB = Math.abs(Date.parse(b.datetime) - targetTime);
-          return diffA - diffB;
+        if (!aFull && Math.abs(coverB - coverA) > 0.15) {
+          return coverB - coverA;
         }
 
-        return coverDiff;
+        // Within scenes with equivalent AOI coverage, score by proximity to target date and lowest cloud cover
+        const diffDaysA = targetTime ? Math.abs(Date.parse(a.datetime) - targetTime) / 86400000 : 0;
+        const diffDaysB = targetTime ? Math.abs(Date.parse(b.datetime) - targetTime) / 86400000 : 0;
+        const cloudA = a.cloudCover ?? 10;
+        const cloudB = b.cloudCover ?? 10;
+
+        const scoreA = diffDaysA * 1.5 + cloudA * 0.5;
+        const scoreB = diffDaysB * 1.5 + cloudB * 0.5;
+        return scoreA - scoreB;
       });
     } else if (query.targetDate) {
       const targetTime = Date.parse(query.targetDate);
