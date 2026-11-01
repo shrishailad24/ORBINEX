@@ -22,8 +22,11 @@ describe('Phase 2 / AI-05 — Raster Co-Registration & Geospatial Alignment Engi
 
   const bPath = path.join(scratchDir, 'test_before.png');
   const aPath = path.join(scratchDir, 'test_after.png');
+  const realS2Path = path.join(process.cwd(), 'scratch', 'live_dhubri_sentinel2_test.png');
+  const realS1Path = path.join(process.cwd(), 'scratch', 'live_dhubri_sentinel1_test.png');
 
   beforeAll(() => {
+    // Generate synthetic ground fixture with known structures
     runPython(`
 import numpy as np
 from PIL import Image
@@ -37,6 +40,7 @@ base[20:35, 20:35] = [180, 170, 160]
 img_b = Image.fromarray(base, mode='RGB')
 img_b.save(r'${bPath}')
 
+# Known translation: shift Y by +1, shift X by +2
 shifted = np.roll(base, shift=1, axis=0)
 shifted = np.roll(shifted, shift=2, axis=1)
 img_a = Image.fromarray(shifted, mode='RGB')
@@ -100,10 +104,10 @@ meta = aligner.validate_raster(img, bbox, 'EPSG:4326')
 assert meta['width'] == 100
 assert meta['height'] == 100
 assert len(meta['affine']) == 6
-assert meta['nominal_gsd_m'] > 0
-print(f"GSD_OK: {meta['nominal_gsd_m']}m")
+assert meta['nominal_gsd_m'] > 0.0
+print('AFFINE_OK')
 `);
-      expect(res).toContain('GSD_OK');
+      expect(res).toContain('AFFINE_OK');
     });
 
     it('rejects degenerate bounding box with min >= max', () => {
@@ -113,9 +117,9 @@ from PIL import Image
 sys.path.append('src/lib/satellite')
 import aligner
 
-img = Image.new('RGB', (100, 100))
+img = Image.new('RGB', (64, 64))
 try:
-    aligner.validate_raster(img, [90.0, 26.0, 89.0, 25.0])
+    aligner.validate_raster(img, [90.0, 26.0, 89.0, 25.0], 'EPSG:4326')
     print('FAILED_TO_REJECT')
 except ValueError as e:
     print('REJECTED_DEGENERATE_OK')
@@ -125,7 +129,7 @@ except ValueError as e:
   });
 
   describe('3. Sub-Pixel Co-Registration & Quality Metrics Execution', () => {
-    it('executes full raster alignment pipeline and measures geometric displacement', async () => {
+    it('executes full raster alignment pipeline and measures geometric displacement accurately', async () => {
       const result = await alignRasterPair({
         beforePath: bPath,
         afterPath: aPath,
@@ -142,9 +146,67 @@ except ValueError as e:
       expect(result.metrics).toBeDefined();
       expect(result.metrics.valid_pixel_overlap_pct).toBeGreaterThan(80.0);
       expect(result.metrics.rmse_pixels).toBeLessThanOrEqual(1.0);
+      expect(result.metrics.rmse_meters).toBeGreaterThan(0.0);
+      // Verify RMSE is not confused with correlation confidence
+      expect(result.metrics.correlation_confidence).toBeGreaterThanOrEqual(0.0);
+      expect(result.metrics.correlation_confidence).toBeLessThanOrEqual(1.0);
+      expect(result.metrics.rmse_pixels).not.toEqual(result.metrics.correlation_confidence);
       expect(result.grid.target_crs).toContain('EPSG:');
       expect(result.alignedBeforeUrl).toBeDefined();
       expect(result.alignedAfterUrl).toBeDefined();
+    });
+
+    it('recovers known synthetic displacement within sub-pixel accuracy (<0.2 px)', () => {
+      const res = runPython(`
+import sys
+import numpy as np
+from PIL import Image
+sys.path.append('src/lib/satellite')
+import aligner
+
+# Synthetic terrain with known sub-pixel shift dx=+2.0, dy=+1.0
+np.random.seed(123)
+base = np.full((128, 128), 100.0, dtype=np.float32)
+base[30:60, 30:60] = 180.0
+base[70:90, 20:100] = 50.0
+
+shifted = np.roll(base, shift=1, axis=0) # dy = +1
+shifted = np.roll(shifted, shift=2, axis=1) # dx = +2
+
+mask = np.ones((128, 128), dtype=bool)
+dx_est, dy_est, conf = aligner.compute_phase_correlation(base, shifted, mask)
+
+err_x = abs(abs(dx_est) - 2.0)
+err_y = abs(abs(dy_est) - 1.0)
+assert err_x < 0.2, f"X shift error too high: {err_x}"
+assert err_y < 0.2, f"Y shift error too high: {err_y}"
+print(f"SUBPIXEL_RECOVERY_OK: err_x={err_x:.3f}, err_y={err_y:.3f}, conf={conf:.3f}")
+`);
+      expect(res).toContain('SUBPIXEL_RECOVERY_OK');
+    });
+
+    it('preserves nodata transparency (alpha=0) after sub-pixel translation', () => {
+      const res = runPython(`
+import sys
+import numpy as np
+from PIL import Image
+sys.path.append('src/lib/satellite')
+import aligner
+
+img = Image.new('RGBA', (64, 64), (100, 120, 90, 255))
+# Set half of the image as transparent nodata
+arr = np.array(img)
+arr[:, :32, 3] = 0
+img_with_nodata = Image.fromarray(arr, mode='RGBA')
+
+shifted = aligner.apply_subpixel_shift(img_with_nodata, dx=2.5, dy=1.5)
+shifted_arr = np.array(shifted)
+
+# Check that nodata region maintains transparent alpha
+assert shifted_arr[:, 5, 3].max() == 0, "Nodata alpha was corrupted by alignment"
+print('NODATA_PRESERVED_OK')
+`);
+      expect(res).toContain('NODATA_PRESERVED_OK');
     });
 
     it('handles multi-resolution comparison honestly (Sentinel-2 10m vs Pléiades Neo 0.3m)', async () => {
@@ -162,6 +224,22 @@ except ValueError as e:
       expect(result.disclosures.length).toBeGreaterThan(0);
       expect(result.disclosures[0]).toContain('Multi-Resolution');
       expect(result.disclosures[0]).toContain('No synthetic high-frequency pixels fabricated');
+    });
+
+    it('handles multi-sensor comparison (Sentinel-2 10m vs Landsat 30m) with GSD disclosure', async () => {
+      const result = await alignRasterPair({
+        beforePath: bPath,
+        afterPath: aPath,
+        aoiBbox: [89.9, 25.9, 90.1, 26.1],
+        beforeSensor: 'Sentinel-2',
+        afterSensor: 'Landsat',
+        gridSize: 320,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.sensors.resolution_mismatch).toBe(true);
+      expect(result.sensors.native_gsd_before_m).toBe(10.0);
+      expect(result.sensors.native_gsd_after_m).toBe(30.0);
     });
 
     it('handles cross-modality comparison (Sentinel-2 Optical vs Sentinel-1 SAR)', async () => {
@@ -199,9 +277,35 @@ res, _, _ = aligner.co_register_raster_pair(
 
 assert res['quality_status'] == 'FAILED', f"Expected FAILED, got {res['quality_status']}"
 assert res['metrics']['valid_pixel_overlap_pct'] == 0.0
+assert 'REJECTED' in res['suitability_summary']
 print('DISJOINT_REJECTION_OK')
 `);
       expect(res).toContain('DISJOINT_REJECTION_OK');
+    });
+  });
+
+  describe('4. Real Georeferenced Satellite Observations Validation', () => {
+    it('co-registers genuine Copernicus Sentinel-2 Optical vs Sentinel-1 SAR rasters', async () => {
+      if (!fs.existsSync(realS2Path) || !fs.existsSync(realS1Path)) {
+        console.warn('Real satellite test fixtures not found, skipping real raster test.');
+        return;
+      }
+
+      const result = await alignRasterPair({
+        beforePath: realS2Path,
+        afterPath: realS1Path,
+        aoiBbox: [89.9, 25.95, 90.05, 26.08],
+        beforeSensor: 'Sentinel-2',
+        afterSensor: 'Sentinel-1 SAR',
+        gridSize: 320,
+      });
+
+      expect(result.status).toBe('success');
+      expect(['GOOD', 'ACCEPTABLE', 'POOR']).toContain(result.quality_status);
+      expect(result.metrics.valid_pixel_overlap_pct).toBeGreaterThan(30.0);
+      expect(result.sensors.is_cross_modality).toBe(true);
+      expect(result.metrics.rmse_pixels).toBeDefined();
+      expect(result.metrics.rmse_meters).toBeDefined();
     });
   });
 });

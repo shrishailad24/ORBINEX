@@ -39,17 +39,24 @@ export async function POST(req: NextRequest) {
 
     const textLower = message.toLowerCase();
 
-    // Detect Imagery or PDF Generation Request (typo-tolerant)
-    const isGenerationIntent =
-      /generat|genrat|grnerat|gen|show|display|get|create|download|make|fetch/i.test(message) &&
-      /img|image|picture|satellite|pdf|report|dossier|compare|before.*after/i.test(message) ||
-      /before.*after/i.test(message) ||
-      /can u generate/i.test(message) ||
-      /pdf|dossier|report/i.test(message);
+    // 1. Distinguish between Informational (how-to/explanation) queries vs Explicit Action requests
+    const isInformationalQuery =
+      /^(how\s+(do|can|to)|what\s+(is|can|are)|explain|guide|help|where\s+can|tell\s+me|show\s+me\s+how)/i.test(textLower) ||
+      /how\s+(do|can)\s+i\s+(compare|draw|generate|download|view)/i.test(textLower);
+
+    // 2. Explicit Action request to generate/produce satellite imagery or PDF dossier
+    const isExplicitActionRequest =
+      !isInformationalQuery &&
+      (
+        /(generat|genrat|grnerat|create|make|build|run|fetch|pull|produce)\s+.*(pdf|report|dossier|imagery|image|pass|comparison)/i.test(textLower) ||
+        /(can\s+u|please|kindly)?\s*(generate|gen|show|display|get|create|download)\s+.*(bengaluru|bengluru|bangalore|dhubri|prayagraj|ghats|tokyo|satellite|img|image|pdf|report|dossier)/i.test(textLower) ||
+        /^(generate|compare|download|create)\b/i.test(textLower.trim()) ||
+        /before\s+and\s+after\s+image/i.test(textLower)
+      );
 
     let satelliteAction: any = null;
 
-    if (isGenerationIntent || /bengaluru|bengluru|bangalore|dhubri|prayagraj|ghats|tokyo|london|new york/i.test(message)) {
+    if (isExplicitActionRequest) {
       // 1. Resolve Location
       let targetLoc: { lat: number; lng: number; name: string; zoom: number } | null = null;
       for (const [key, val] of Object.entries(KNOWN_LOCATIONS)) {

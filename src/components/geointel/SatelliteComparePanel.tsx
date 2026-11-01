@@ -301,6 +301,10 @@ export default function SatelliteComparePanel({
 
   const handleRunAnalysis = async () => {
     if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
+    if (alignmentResult?.quality_status === 'FAILED') {
+      alert(`Automated change detection inhibited: ${alignmentResult.suitability_summary}`);
+      return;
+    }
     setAnalyzing(true);
     try {
       const areaKm2 = drawnAOI?.areaKm2 || (4 * surroundingRadiusKm * surroundingRadiusKm);
@@ -2213,11 +2217,21 @@ export default function SatelliteComparePanel({
                     )}
                   </div>
 
+                  {alignmentResult?.quality_status === 'FAILED' && (
+                    <div className="p-2 rounded bg-red-500/10 border border-red-500/40 text-[8.5px] text-red-300 flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold text-red-400">CHANGE DETECTION INHIBITED (AI-05 SAFEGUARD)</div>
+                        <div>{alignmentResult.suitability_summary}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {!analysisReport ? (
                     <button
                       onClick={handleRunAnalysis}
-                      disabled={analyzing}
-                      className="w-full py-2 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-white font-bold text-[9.5px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50"
+                      disabled={analyzing || alignmentResult?.quality_status === 'FAILED'}
+                      className="w-full py-2 px-3 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-white font-bold text-[9.5px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {analyzing ? (
                         <>
