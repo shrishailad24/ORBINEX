@@ -45,6 +45,27 @@ export async function GET(req: Request) {
   const platform = (searchParams.get('platform') as SatellitePlatform) || 'Sentinel-2';
   const targetWidth = Math.max(64, Math.min(2048, parseInt(searchParams.get('width') || '768', 10)));
 
+  // If a WMTS tile template URL (with {z}/{y}/{x}) is passed, convert to direct high-res raster export
+  if (rawUrl.includes('{z}') || rawUrl.includes('{x}')) {
+    const targetBbox = aoiBbox || sceneBbox || [-180, -90, 180, 90];
+    const [minLng, minLat, maxLng, maxLat] = targetBbox;
+    const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=${targetWidth},${targetWidth}&f=image`;
+    const exportRes = await fetch(exportUrl);
+    if (!exportRes.ok) {
+      return NextResponse.json({ error: 'Failed to export basemap raster' }, { status: 502 });
+    }
+    const buf = Buffer.from(await exportRes.arrayBuffer());
+    return new NextResponse(new Uint8Array(buf), {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/jpeg',
+        'Content-Length': String(buf.length),
+        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+        'X-Satellite-Platform': platform,
+      },
+    });
+  }
+
   try {
     const result = await processSatelliteAsset({
       inputUrl: rawUrl,
