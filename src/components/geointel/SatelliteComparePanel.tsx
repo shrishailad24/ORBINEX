@@ -119,7 +119,7 @@ export default function SatelliteComparePanel({
     defaultZoom: STRATEGIC_PRESETS[0].defaultZoom,
   });
 
-  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'Pléiades Neo' | 'SkySat' | 'High-Res' | 'NASA-GIBS'>('Sentinel-2');
+  const [platform, setPlatform] = useState<'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'Pléiades Neo' | 'SkySat' | 'WorldView' | 'High-Res' | 'NASA-GIBS'>('Sentinel-2');
   const [beforeDate, setBeforeDate] = useState(STRATEGIC_PRESETS[0].suggestedBeforeDate);
   const [afterDate, setAfterDate] = useState(STRATEGIC_PRESETS[0].suggestedAfterDate);
   const [maxCloudCover, setMaxCloudCover] = useState(20);
@@ -333,10 +333,102 @@ export default function SatelliteComparePanel({
   const [specialistAiError, setSpecialistAiError] = useState<string | null>(null);
   const [feedbackRecorded, setFeedbackRecorded] = useState(false);
 
-  // Phase 2: Commercial VHR Quoting
+  // Phase 2 / AI-04: Commercial VHR Discovery & Quoting
   const [vhrQuoteResult, setVhrQuoteResult] = useState<any | null>(null);
   const [vhrQuoting, setVhrQuoting] = useState(false);
   const [showVhrQuoteModal, setShowVhrQuoteModal] = useState(false);
+  const [commercialObservations, setCommercialObservations] = useState<any[]>([]);
+  const [searchingCommercial, setSearchingCommercial] = useState(false);
+  const [selectedCommercialProvider, setSelectedCommercialProvider] = useState<string>('all');
+  const [commercialMaxCloud, setCommercialMaxCloud] = useState<number>(20);
+  const [humanApprovalSigned, setHumanApprovalSigned] = useState(false);
+  const [orderSubmissionResult, setOrderSubmissionResult] = useState<any | null>(null);
+  const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [showCommercialDiscovery, setShowCommercialDiscovery] = useState(false);
+
+  const handleSearchCommercial = async () => {
+    setSearchingCommercial(true);
+    try {
+      const bbox = drawnAOI?.bbox || currentBbox;
+      const res = await fetch('/api/satellite/vhr/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bbox,
+          targetDate: afterDate,
+          maxCloudCover: commercialMaxCloud,
+          providerFilter: selectedCommercialProvider === 'all' ? undefined : [selectedCommercialProvider],
+          limit: 10,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCommercialObservations(data.observations || []);
+        setShowCommercialDiscovery(true);
+      }
+    } catch (err) {
+      console.error('[ORBINEX] Commercial search failed:', err);
+    } finally {
+      setSearchingCommercial(false);
+    }
+  };
+
+  const handleApplyCommercialScene = (obs: any, slot: 'before' | 'after') => {
+    const scene: SatelliteScene = {
+      id: obs.id,
+      platform: (obs.satellite as any) || 'Pléiades Neo',
+      modality: obs.modality,
+      collection: obs.productLevel,
+      datetime: obs.acquisitionDate,
+      cloudCover: obs.cloudCover,
+      bbox: obs.bbox,
+      coordinates: [
+        [obs.bbox[0], obs.bbox[3]],
+        [obs.bbox[2], obs.bbox[3]],
+        [obs.bbox[2], obs.bbox[1]],
+        [obs.bbox[0], obs.bbox[1]],
+      ],
+      thumbnailUrl: obs.thumbnailUrl || obs.visualUrl,
+      visualUrl: obs.visualUrl,
+      metadata: {
+        resolutionMeters: obs.gsdMeters,
+        instrument: obs.sensor,
+      },
+    };
+
+    setComparison((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        [slot]: {
+          ...prev[slot],
+          matchedScene: scene,
+        },
+      };
+    });
+  };
+
+  const handleConfirmCommercialOrder = async () => {
+    if (!vhrQuoteResult) return;
+    setSubmittingOrder(true);
+    try {
+      const res = await fetch('/api/satellite/vhr/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: vhrQuoteResult.provider.id,
+          areaKm2: vhrQuoteResult.billableAreaKm2,
+          humanApprovalSigned,
+        }),
+      });
+      const data = await res.json();
+      setOrderSubmissionResult(data);
+    } catch (err: any) {
+      console.error('[ORBINEX] Order safety failed:', err);
+    } finally {
+      setSubmittingOrder(false);
+    }
+  };
 
   const handleRunSpecialistAi = async () => {
     if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
@@ -1234,13 +1326,14 @@ export default function SatelliteComparePanel({
               <span>Constellation / Sensor</span>
               <span className="text-[#00E5FF]">{platform}</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
+            <div className="grid grid-cols-3 sm:grid-cols-7 gap-1">
               {([
                 { id: 'Sentinel-2', label: 'S2 Optical', badge: '10m' },
                 { id: 'Sentinel-1', label: 'S1 SAR', badge: 'Radar' },
                 { id: 'Landsat', label: 'Landsat', badge: '30m' },
                 { id: 'Pléiades Neo', label: 'P-NEO', badge: '30cm VHR' },
                 { id: 'SkySat', label: 'SkySat', badge: '50cm' },
+                { id: 'WorldView', label: 'WorldView', badge: '31cm' },
                 { id: 'High-Res', label: 'High-Res', badge: 'Aerial' },
               ] as const).map((p) => (
                 <button
@@ -1307,11 +1400,33 @@ export default function SatelliteComparePanel({
                 </button>
               </div>
             )}
+            {platform === 'WorldView' && (
+              <div className="p-2 rounded bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[8px] space-y-1">
+                <div className="flex items-center justify-between text-[#00E5FF] font-bold">
+                  <span>MAXAR WORLDVIEW-3 / LEGION · 31cm PAN / 1.24m MS</span>
+                  <span className="px-1 py-0.5 rounded bg-[#00E5FF]/20 text-[7px] border border-[#00E5FF]/40">VHR DISCOVERY</span>
+                </div>
+                <p className="text-slate-300 leading-tight">
+                  Defense-grade sub-meter commercial Earth observation. 8-band VNIR and 31cm panchromatic imagery for structural and infrastructural change intelligence.
+                </p>
+                <p className="text-slate-400 font-mono text-[7px]">
+                  Attribution: © Maxar Technologies [WorldView-3] · Metadata Discovery Active · Set MAXAR_API_TOKEN for licensed raster COGs.
+                </p>
+                <button
+                  onClick={() => handleGetVhrQuote('maxar-worldview')}
+                  disabled={vhrQuoting}
+                  className="mt-1 py-1 px-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[#00E5FF] text-[8px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full"
+                >
+                  <DollarSign className="w-2.5 h-2.5" />
+                  <span>Instant 31cm WorldView-3 Commercial Quote</span>
+                </button>
+              </div>
+            )}
             {showVhrQuoteModal && vhrQuoteResult && (
-              <div className="p-2.5 rounded bg-cyan-950/40 border border-cyan-500/40 space-y-1.5 text-[8px]">
+              <div className="p-2.5 rounded bg-cyan-950/40 border border-cyan-500/40 space-y-2 text-[8px]">
                 <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-cyan-500/20 pb-1">
-                  <span>COMMERCIAL VHR PRICING & TASKING (AI-04)</span>
-                  <button onClick={() => setShowVhrQuoteModal(false)} className="text-slate-400 hover:text-white">✕</button>
+                  <span>COMMERCIAL VHR PRICING & TASKING SAFEGUARD (AI-04)</span>
+                  <button onClick={() => { setShowVhrQuoteModal(false); setOrderSubmissionResult(null); }} className="text-slate-400 hover:text-white">✕</button>
                 </div>
                 <div className="text-white font-bold text-[9px]">{vhrQuoteResult.provider.name}</div>
                 <div className="grid grid-cols-2 gap-1 font-mono text-[7.5px] text-slate-300">
@@ -1325,6 +1440,39 @@ export default function SatelliteComparePanel({
                   <span className="text-emerald-400 font-bold text-[11px] font-mono">${vhrQuoteResult.totalEstimateUsd.toLocaleString()} USD</span>
                 </div>
                 <div className="text-[7px] text-amber-300/80 italic">{vhrQuoteResult.honestResolutionNotice}</div>
+                
+                {/* Mandatory Human Confirmation Boundary (Section 8 / RSK-09) */}
+                <div className="p-2 rounded bg-black/60 border border-cyan-500/30 space-y-1.5">
+                  <label className="flex items-start gap-1.5 cursor-pointer text-[7.5px] text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={humanApprovalSigned}
+                      onChange={(e) => setHumanApprovalSigned(e.target.checked)}
+                      className="accent-[#00E5FF] mt-0.5"
+                    />
+                    <span><b>Explicit Human Authorization:</b> I authorize acquisition quote preparation for this AOI under ORBINEX Safety Protocol RSK-09.</span>
+                  </label>
+                  <p className="text-[6.5px] text-slate-400 italic">
+                    Safeguard Active: Automated ordering and background billing are locked. Live satellite tasking execution requires manual administrative sign-off.
+                  </p>
+                  <button
+                    onClick={handleConfirmCommercialOrder}
+                    disabled={submittingOrder || !humanApprovalSigned}
+                    className="py-1 px-2 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-[#00E5FF] text-[8px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 w-full disabled:opacity-40"
+                  >
+                    {submittingOrder ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />}
+                    <span>Confirm Order Preparation & Verify Safety Interlock</span>
+                  </button>
+                  {orderSubmissionResult && (
+                    <div className={`p-1.5 rounded border text-[7.5px] ${orderSubmissionResult.success ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300' : 'bg-amber-950/40 border-amber-500/40 text-amber-300'}`}>
+                      <div className="font-bold flex items-center gap-1">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                        <span>{orderSubmissionResult.status}</span>
+                      </div>
+                      <p className="mt-0.5 text-slate-300 leading-tight">{orderSubmissionResult.message}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -1435,6 +1583,128 @@ export default function SatelliteComparePanel({
               </>
             )}
           </button>
+
+          {/* AI-04: Commercial VHR Discovery & Satellite Asset Archive */}
+          <div className="p-2.5 rounded bg-black/40 border border-white/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <Satellite className="w-3.5 h-3.5 text-[#00E5FF]" />
+                <span>Commercial VHR Archive Discovery (AI-04)</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowCommercialDiscovery(!showCommercialDiscovery)}
+                className="text-[8px] text-slate-400 hover:text-white uppercase font-mono px-1 py-0.5 rounded border border-white/10"
+              >
+                {showCommercialDiscovery ? 'Collapse' : 'Expand'}
+              </button>
+            </div>
+
+            <p className="text-[7.5px] text-slate-400 leading-tight">
+              Discover commercial sub-meter archives (Airbus Pléiades Neo 30cm, Planet SkySat 50cm, Maxar WorldView 31cm) for the selected AOI bounding box.
+            </p>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <div>
+                <label className="text-[7.5px] text-slate-400 block mb-0.5">Provider Filter</label>
+                <select
+                  value={selectedCommercialProvider}
+                  onChange={(e) => setSelectedCommercialProvider(e.target.value)}
+                  className="w-full bg-black/60 border border-white/20 rounded px-1.5 py-1 text-slate-200 text-[8px] focus:outline-none focus:border-[#00E5FF]"
+                >
+                  <option value="all">All Commercial Providers</option>
+                  <option value="airbus-oneatlas">Airbus OneAtlas (Pléiades Neo)</option>
+                  <option value="planet-data">Planet Labs (SkySat)</option>
+                  <option value="maxar-ard">Maxar Technologies (WorldView)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[7.5px] text-slate-400 block mb-0.5">Max Cloud Cover</label>
+                <select
+                  value={commercialMaxCloud}
+                  onChange={(e) => setCommercialMaxCloud(parseInt(e.target.value, 10))}
+                  className="w-full bg-black/60 border border-white/20 rounded px-1.5 py-1 text-slate-200 text-[8px] focus:outline-none focus:border-[#00E5FF]"
+                >
+                  <option value={5}>≤ 5% Cloud Cover</option>
+                  <option value={10}>≤ 10% Cloud Cover</option>
+                  <option value={20}>≤ 20% Cloud Cover</option>
+                  <option value={35}>≤ 35% Cloud Cover</option>
+                </select>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSearchCommercial}
+              disabled={searchingCommercial}
+              className="w-full py-1.5 px-3 bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/30 rounded text-[#00E5FF] text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+            >
+              {searchingCommercial ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  <span>Discovering Commercial Archives...</span>
+                </>
+              ) : (
+                <>
+                  <Search className="w-3 h-3" />
+                  <span>Search Commercial VHR Archive</span>
+                </>
+              )}
+            </button>
+
+            {showCommercialDiscovery && commercialObservations.length > 0 && (
+              <div className="space-y-1.5 pt-1 border-t border-white/10 max-h-56 overflow-y-auto pr-1">
+                {commercialObservations.map((obs) => (
+                  <div key={obs.id} className="p-2 rounded bg-white/[0.03] border border-white/10 space-y-1 text-[7.5px]">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-[8px]">{obs.satellite} ({obs.providerName})</span>
+                      <span className={`px-1 py-0.5 rounded text-[6.5px] font-mono uppercase font-bold border ${obs.accessStatus === 'ready_to_download' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-cyan-500/10 text-cyan-300 border-cyan-500/30'}`}>
+                        {obs.accessStatus.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1 text-slate-300 font-mono text-[7px]">
+                      <div>Acquisition: {obs.acquisitionDate.split('T')[0]}</div>
+                      <div>GSD: {obs.gsdMeters}m ({obs.panchromaticResolutionMeters ? `${obs.panchromaticResolutionMeters}m PAN` : 'MS'})</div>
+                      <div>Cloud Cover: {obs.cloudCover}%</div>
+                      <div>AOI Intersection: {obs.aoiIntersectionPercent}%</div>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-400 text-[6.5px] italic">
+                      <span>{obs.licensing?.attribution}</span>
+                      {obs.orderRequirements && (
+                        <span className="text-emerald-400 font-mono font-bold">${obs.orderRequirements.estimatedCostUsd.toFixed(0)} USD</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 pt-1 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCommercialScene(obs, 'before')}
+                        className="flex-1 py-0.5 px-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-slate-200 text-[7px] font-bold uppercase tracking-wider"
+                      >
+                        Set as BEFORE
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCommercialScene(obs, 'after')}
+                        className="flex-1 py-0.5 px-1 bg-[#00E5FF]/20 hover:bg-[#00E5FF]/30 border border-[#00E5FF]/40 rounded text-[#00E5FF] text-[7px] font-bold uppercase tracking-wider"
+                      >
+                        Set as AFTER
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const pId = obs.providerId.includes('airbus') ? 'airbus-neo' : obs.providerId.includes('planet') ? 'planet-skysat' : 'maxar-worldview';
+                          handleGetVhrQuote(pId);
+                        }}
+                        className="py-0.5 px-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded text-amber-300 text-[7px] font-bold uppercase tracking-wider"
+                      >
+                        Quote
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Error Message */}
           {error && (

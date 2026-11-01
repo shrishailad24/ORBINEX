@@ -138,3 +138,19 @@ When a user defines an Area of Interest (AOI):
 3. **Ranking Score Formulation:**
    $$\text{Score} = (100 - \text{CloudCover}) \times 0.35 + \left(\frac{1}{\text{GSD}}\right) \times 0.40 - \Delta\text{Days} \times 0.25$$
 4. **Interactive Choice:** The user can toggle between available sensors via the `CONSTELLATION / SENSOR` bar, with clear badges showing **Resolution**, **Acquisition Date**, and **License Status**.
+
+---
+
+## 6. Paid Order & Tasking Safety Governance (RSK-09)
+
+To ensure operational security and prevent uncontrolled commercial billing runaway:
+1. **Mandatory Human-Confirmation Boundary:**
+   - Automated ordering, background billing, or autonomous tasking requests are strictly prohibited across all commercial provider adapters (`Airbus OneAtlas`, `Planet Orders`, `Maxar ARD`).
+   - Every commercial transaction requires explicit human authorization (`humanApprovalSigned: true`).
+2. **Safe Mode Interlock:**
+   - In standard operational mode, commercial purchases and live tasking execution remain locked in software (`status: 'SAFEGUARD_LOCKED'`).
+   - The platform calculates accurate billable areas, minimum order rules, and price estimates without triggering financial commitments.
+3. **Authorized Server-Side Raster Retrieval:**
+   - Asset URLs are strictly validated against an approved hostname allowlist (`*.airbus.com`, `*.planet.com`, `*.maxar.com`) to prevent SSRF vulnerabilities.
+   - File downloads are bounded by a 500MB safety threshold with SHA-256 checksum verification.
+

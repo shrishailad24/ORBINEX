@@ -169,6 +169,11 @@ describe('ORBINEX AI-03 — Unified Multi-Provider Satellite Discovery', () => {
         thumbnailUrl: 'https://example.com/thumb.jpg',
         visualUrl: 'https://example.com/vis.tif',
         isRasterAvailable: true,
+        crs: 'EPSG:4326',
+        accessStatus: 'ready_to_download',
+        assetStage: 'downloadable_raster',
+        downloadAvailability: true,
+        availableAssets: [],
         licensing: { tier: 'open_access', requiresCredentials: false, hasCredentials: true, attribution: 'ESA' },
         suitability: evaluateAreaSuitability(186, 10, 'Sentinel-2'),
       };

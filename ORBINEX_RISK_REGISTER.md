@@ -36,7 +36,9 @@
 
 ### Protocol 2: Commercial VHR Purchase & Tasking Guard (RSK-09)
 - All commercial satellite integrations (Airbus OneAtlas, Planet Orders, Maxar ARD) operate strictly in **Metadata Discovery Mode** by default.
-- Paid raster pixel downloads or satellite tasking orders require multi-step analyst authorization and explicit budget checks.
+- Programmatic safety interlock (`src/lib/satellite/vhr-safety.ts`) rejects automated commercial orders without explicit human signature (`humanApprovalSigned: true`).
+- In accordance with AI-04 safety governance, live commercial purchases and satellite tasking are software-locked (`SAFEGUARD_LOCKED`) to prevent background financial runaway.
+- Server-side raster downloads (`/api/satellite/vhr/retrieve`) enforce strict domain allowlists and 500MB payload caps against SSRF and resource exhaustion.
 
 ### Protocol 3: Honest Resolution & Degraded State Notice (RSK-10 & RSK-11)
 - If a user selects an area smaller than $50,000\text{ m}^2$ (e.g. 2,000 sq ft) and 30cm VHR imagery is unavailable, the UI must display:

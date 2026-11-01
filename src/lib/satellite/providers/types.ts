@@ -7,6 +7,44 @@ export type ProviderType = 'open' | 'commercial';
 
 export type ResolutionClass = 'sub_meter' | 'high_res' | 'regional' | 'coarse';
 
+export type CommercialAccessStatus =
+  | 'ready_to_download'
+  | 'order_required'
+  | 'metadata_only'
+  | 'unauthorized'
+  | 'unavailable';
+
+export type AssetPipelineStage =
+  | 'catalogue_metadata'
+  | 'thumbnail_preview'
+  | 'licensed_asset'
+  | 'downloadable_raster'
+  | 'processed_raster';
+
+export interface CommercialRasterAsset {
+  key: string;
+  name: string;
+  type: 'panchromatic' | 'multispectral' | 'pansharpened' | 'visual' | 'thumbnail' | 'metadata_xml' | 'dem';
+  format: 'COG' | 'GeoTIFF' | 'JPEG2000' | 'PNG' | 'JPEG' | 'XML';
+  resolutionMeters: number;
+  downloadUrl?: string;
+  sizeBytes?: number;
+  checksumSha256?: string;
+  isAuthorized: boolean;
+}
+
+export interface CommercialOrderRequirements {
+  minOrderAreaKm2: number;
+  requestedAreaKm2: number;
+  billableAreaKm2: number;
+  estimatedCostUsd: number;
+  turnaroundHours: number;
+  humanApprovalRequired: boolean;
+  isPurchased: boolean;
+  taskingEligible: boolean;
+  orderSafeguardNotice: string;
+}
+
 export type LicensingTier =
   | 'open_access'
   | 'commercial_metadata_only'
@@ -45,6 +83,9 @@ export interface NormalizedSatelliteObservation {
   modality: 'optical' | 'sar' | 'thermal' | 'composite';
   acquisitionDate: string;
   gsdMeters: number;
+  panchromaticResolutionMeters?: number;
+  multispectralResolutionMeters?: number;
+  crs: string; // EPSG identifier, e.g. "EPSG:4326"
   cloudCover: number | null;
   bands: string[];
   productLevel: string;
@@ -57,6 +98,11 @@ export interface NormalizedSatelliteObservation {
   thumbnailUrl: string;
   visualUrl: string;
   isRasterAvailable: boolean;
+  accessStatus: CommercialAccessStatus;
+  assetStage: AssetPipelineStage;
+  availableAssets: CommercialRasterAsset[];
+  orderRequirements?: CommercialOrderRequirements;
+  downloadAvailability: boolean;
   licensing: LicensingInfo;
   suitability: SmallAreaEvaluation;
   rankingScore?: number;

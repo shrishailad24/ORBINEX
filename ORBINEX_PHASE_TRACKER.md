@@ -76,9 +76,13 @@ flowchart TD
 - **Workstreams:** `AI-02`, `AI-03`, `AI-04`, `AI-05`, `AI-06`
 - **Accomplishments:**
   - **AI-02 (Global Draw-Anywhere AOI):** Full polygon and rectangle drawing on MapLibre with exact geodesic area calculations (sq ft, m², acres, hectares, km²).
-  - **AI-03 & AI-04 (Multi-Resolution Commercial VHR):**
-    - Integrated **Airbus Pléiades Neo** (30cm PAN / 1.2m MS), **Planet SkySat** (50cm), and **Maxar WorldView-3** (31cm class).
-    - Commercial VHR quote & tasking engine (`src/lib/satellite/vhr-pricing.ts`) exposed via `/api/satellite/vhr/quote`.
+  - **AI-03 & AI-04 (Commercial VHR Satellite Integration & Discovery Engine):**
+    - Integrated **Airbus OneAtlas Pléiades Neo** (30cm PAN / 1.2m MS), **Planet SkySat** (50cm PAN / 0.8m MS), and **Maxar WorldView-3 / Legion** (31cm PAN / 1.24m MS).
+    - Normalized observation model distinguishing panchromatic vs multispectral resolution, CRS, access status (`ready_to_download`, `order_required`, `metadata_only`), available raster assets, and order requirements.
+    - Commercial VHR quote & tasking engine (`vhr-pricing.ts`, `vhr-safety.ts`) exposed via `/api/satellite/vhr/quote` and `/api/satellite/vhr/order`.
+    - Mandatory Paid Order & Tasking Safety Boundary (Section 8 / RSK-09): strict human-confirmation boundary preventing automated billing runaway or unintended satellite tasking.
+    - Server-side authorized raster retrieval (`/api/satellite/vhr/retrieve`) with SSRF allowlisting, 500MB size threshold, and SHA-256 checksum generation.
+    - Dedicated interactive Commercial VHR Discovery & Asset Archive section in `SatelliteComparePanel.tsx` supporting live filtering by provider, cloud cover, and date, plus direct injection into the dual-temporal split comparison engine.
     - Enforced the **Honest Communication Rule**: alerts users when small 2,000 sq ft plots require commercial sub-meter sensors rather than 10m open imagery.
   - **AI-05 (Image Alignment & Reprojection):** Canonical geographic bounding box warping with zero lateral pixel shift.
   - **AI-06 (Split Slider):** Dual-temporal swipe slider with guaranteed non-identical date-matched observation passes.

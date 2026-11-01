@@ -174,7 +174,7 @@ export async function buildHistoricalComparison(
   lng: number,
   beforeDate: string,
   afterDate: string,
-  platform: 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS' | 'Pléiades Neo' | 'SkySat' | 'WorldView-3' | 'High-Res' = 'Sentinel-2',
+  platform: 'Sentinel-2' | 'Sentinel-1' | 'Landsat' | 'NASA-GIBS' | 'Pléiades Neo' | 'SkySat' | 'WorldView' | 'WorldView-3' | 'High-Res' = 'Sentinel-2',
   radiusKm: number = 10,
   bbox?: [number, number, number, number]
 ): Promise<HistoricalComparisonPair> {
@@ -202,14 +202,14 @@ export async function buildHistoricalComparison(
     };
   }
 
-  // VHR Commercial Platforms via Satellite Registry (AI-03) & High-Res
-  if (platform === 'Pléiades Neo' || platform === 'SkySat' || platform === 'WorldView-3' || platform === 'High-Res') {
+  // VHR Commercial Platforms via Satellite Registry (AI-03 / AI-04) & High-Res
+  if (platform === 'Pléiades Neo' || platform === 'SkySat' || platform === 'WorldView' || platform === 'WorldView-3' || platform === 'High-Res') {
     const providerFilter =
       platform === 'Pléiades Neo'
         ? ['airbus-oneatlas']
         : platform === 'SkySat'
           ? ['planet-data']
-          : platform === 'WorldView-3'
+          : platform === 'WorldView' || platform === 'WorldView-3'
             ? ['maxar-ard']
             : undefined;
 
