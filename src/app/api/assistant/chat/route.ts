@@ -103,22 +103,27 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!targetLoc && context?.activeAOI) {
+      let isAmbiguousLocation = false;
+      if (!targetLoc && isAffirmativeFollowup && context?.activeAOI) {
         targetLoc = {
           lat: context.activeAOI.center[0],
           lng: context.activeAOI.center[1],
           name: context.activeAOI.name,
           zoom: 13,
         };
-      } else if (!targetLoc && context?.viewState) {
-        targetLoc = {
-          lat: context.viewState.lat,
-          lng: context.viewState.lng,
-          name: 'Active Map Location',
-          zoom: Math.round(context.viewState.zoom) || 12,
-        };
       } else if (!targetLoc) {
-        targetLoc = KNOWN_LOCATIONS.bengaluru; // default to strategic location
+        isAmbiguousLocation = true;
+      }
+
+      if (isAmbiguousLocation || !targetLoc) {
+        const clarificationMsg = `I could not locate verified geographic coordinates for that location in the ORBINEX planetary directory. To ensure precision analysis, please specify the city or latitude/longitude, or use the **Draw-to-Analyse AOI** tool on the primary map to select the target area.`;
+        return NextResponse.json({
+          answer: clarificationMsg,
+          sources: [],
+          satelliteAction: null,
+          copilotAction: null,
+          timestamp: new Date().toISOString(),
+        });
       }
 
       // 2. Resolve Dates
