@@ -182,8 +182,45 @@ export async function searchSatelliteScenes(query: STACSearchQuery): Promise<Sat
       }
     }
 
-    // If a targetDate was provided, sort by proximity to targetDate
-    if (query.targetDate) {
+    // Prioritize scenes that provide optimal coverage over the requested AOI.
+    // Scenes with high AOI intersection (>70%) must rank above scenes that only clip an edge.
+    if (query.bbox) {
+      const [aMinLng, aMinLat, aMaxLng, aMaxLat] = query.bbox;
+      const aArea = Math.max(1e-9, (aMaxLng - aMinLng) * (aMaxLat - aMinLat));
+
+      const getIntersectionRatio = (sBbox: [number, number, number, number] | undefined) => {
+        if (!sBbox) return 0;
+        const [sMinLng, sMinLat, sMaxLng, sMaxLat] = sBbox;
+        const iMinLng = Math.max(aMinLng, sMinLng);
+        const iMinLat = Math.max(aMinLat, sMinLat);
+        const iMaxLng = Math.min(aMaxLng, sMaxLng);
+        const iMaxLat = Math.min(aMaxLat, sMaxLat);
+        if (iMinLng >= iMaxLng || iMinLat >= iMaxLat) return 0;
+        return ((iMaxLng - iMinLng) * (iMaxLat - iMinLat)) / aArea;
+      };
+
+      const targetTime = query.targetDate ? Date.parse(query.targetDate) : null;
+
+      scenes.sort((a, b) => {
+        const coverA = getIntersectionRatio(a.bbox);
+        const coverB = getIntersectionRatio(b.bbox);
+
+        // If one scene covers substantially more of the AOI (e.g. >= 70% vs edge clip), prefer higher coverage
+        const coverDiff = coverB - coverA;
+        if (Math.abs(coverDiff) > 0.20) {
+          return coverDiff;
+        }
+
+        // Within comparable coverage, sort by proximity to targetDate
+        if (targetTime) {
+          const diffA = Math.abs(Date.parse(a.datetime) - targetTime);
+          const diffB = Math.abs(Date.parse(b.datetime) - targetTime);
+          return diffA - diffB;
+        }
+
+        return coverDiff;
+      });
+    } else if (query.targetDate) {
       const targetTime = Date.parse(query.targetDate);
       scenes.sort((a, b) => {
         const diffA = Math.abs(Date.parse(a.datetime) - targetTime);

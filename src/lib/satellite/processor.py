@@ -42,7 +42,7 @@ def download_asset(url, dest_path, max_bytes=50_000_000, timeout=30):
 def apply_contrast_stretch(arr, p_low=2.0, p_high=98.0):
     """Applies standard satellite percentile linear stretch to expand dynamic range."""
     stretched = np.zeros_like(arr, dtype=np.uint8)
-    channels = 1 if arr.ndim == 2 else arr.shape[2]
+    channels = 1 if arr.ndim == 2 else min(3, arr.shape[2])
     
     for c in range(channels):
         channel_data = arr[:, :] if arr.ndim == 2 else arr[:, :, c]
@@ -65,50 +65,87 @@ def apply_contrast_stretch(arr, p_low=2.0, p_high=98.0):
             stretched = clipped
         else:
             stretched[:, :, c] = clipped
+
+    if arr.ndim == 3 and arr.shape[2] == 4:
+        stretched[:, :, 3] = arr[:, :, 3]
             
     return stretched
 
-def crop_to_aoi(img, scene_bbox, aoi_bbox):
-    """Crops the image to match the AOI coordinates relative to the full scene bounding box."""
+def crop_to_aoi(img, scene_bbox, aoi_bbox, target_size=640):
+    """
+    Georeferenced orthorectified reprojection onto the canonical AOI coordinate box.
+    Guarantees 1:1 pixel alignment between multi-temporal passes, placing intersecting
+    scene data at the exact destination pixels on the canonical AOI canvas with nodata
+    transparency padding for unobserved coordinates.
+    """
     s_min_lng, s_min_lat, s_max_lng, s_max_lat = scene_bbox
     a_min_lng, a_min_lat, a_max_lng, a_max_lat = aoi_bbox
     
-    img_w, img_h = img.size
-    
-    # Calculate fractional coordinates
     s_lng_span = s_max_lng - s_min_lng
     s_lat_span = s_max_lat - s_min_lat
+    a_lng_span = a_max_lng - a_min_lng
+    a_lat_span = a_max_lat - a_min_lat
     
-    if s_lng_span <= 0 or s_lat_span <= 0:
+    if s_lng_span <= 0 or s_lat_span <= 0 or a_lng_span <= 0 or a_lat_span <= 0:
         return img
         
-    left_pct = max(0.0, min(1.0, (a_min_lng - s_min_lng) / s_lng_span))
-    right_pct = max(0.0, min(1.0, (a_max_lng - s_min_lng) / s_lng_span))
-    # Latitudes are inverted relative to pixel Y (top = max_lat, bottom = min_lat)
-    top_pct = max(0.0, min(1.0, (s_max_lat - a_max_lat) / s_lat_span))
-    bottom_pct = max(0.0, min(1.0, (s_max_lat - a_min_lat) / s_lat_span))
+    img_w, img_h = img.size
     
-    # Ensure minimum 10% bounding box crop if inside
-    if right_pct <= left_pct or bottom_pct <= top_pct:
-        return img
-        
-    x1 = int(left_pct * img_w)
-    x2 = int(right_pct * img_w)
-    y1 = int(top_pct * img_h)
-    y2 = int(bottom_pct * img_h)
+    # Calculate geographical intersection
+    i_min_lng = max(a_min_lng, s_min_lng)
+    i_max_lng = min(a_max_lng, s_max_lng)
+    i_min_lat = max(a_min_lat, s_min_lat)
+    i_max_lat = min(a_max_lat, s_max_lat)
     
-    # Require at least 4px
-    if (x2 - x1) < 4 or (y2 - y1) < 4:
-        return img
+    out_w = max(320, min(1024, target_size))
+    aspect = a_lng_span / a_lat_span if a_lat_span > 0 else 1.0
+    out_h = int(out_w / aspect) if aspect > 0 else out_w
+    out_h = max(128, min(1024, out_h))
+    
+    # Target canvas for the AOI (RGBA mode for clean nodata transparency)
+    canvas = Image.new("RGBA", (out_w, out_h), (0, 0, 0, 0))
+    
+    if i_min_lng >= i_max_lng or i_min_lat >= i_max_lat:
+        return canvas
         
-    cropped_img = img.crop((x1, y1, x2, y2))
-    # If cropped patch is small, upscale with high-quality resampling so it remains crisp and detailed
-    if cropped_img.width < 320 or cropped_img.height < 320:
-        scale = max(320 / float(cropped_img.width), 320 / float(cropped_img.height))
-        new_w = max(32, int(cropped_img.width * scale))
-        new_h = max(32, int(cropped_img.height * scale))
-        cropped_img = cropped_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-    return cropped_img
+    # Source pixel crop coordinates inside scene image
+    sx1 = int(((i_min_lng - s_min_lng) / s_lng_span) * img_w)
+    sx2 = int(((i_max_lng - s_min_lng) / s_lng_span) * img_w)
+    # Latitude is inverted relative to pixel Y (top = max_lat, bottom = min_lat)
+    sy1 = int(((s_max_lat - i_max_lat) / s_lat_span) * img_h)
+    sy2 = int(((s_max_lat - i_min_lat) / s_lat_span) * img_h)
+    
+    sx1 = max(0, min(img_w - 1, sx1))
+    sx2 = max(sx1 + 1, min(img_w, sx2))
+    sy1 = max(0, min(img_h - 1, sy1))
+    sy2 = max(sy1 + 1, min(img_h, sy2))
+    
+    if (sx2 - sx1) < 1 or (sy2 - sy1) < 1:
+        return canvas
+        
+    src_patch = img.crop((sx1, sy1, sx2, sy2))
+    
+    # Destination pixel bounds on canonical AOI canvas
+    dx1 = int(((i_min_lng - a_min_lng) / a_lng_span) * out_w)
+    dx2 = int(((i_max_lng - a_min_lng) / a_lng_span) * out_w)
+    dy1 = int(((a_max_lat - i_max_lat) / a_lat_span) * out_h)
+    dy2 = int(((a_max_lat - i_min_lat) / a_lat_span) * out_h)
+    
+    dx1 = max(0, min(out_w - 1, dx1))
+    dx2 = max(dx1 + 1, min(out_w, dx2))
+    dy1 = max(0, min(out_h - 1, dy1))
+    dy2 = max(dy1 + 1, min(out_h, dy2))
+    
+    dw = dx2 - dx1
+    dh = dy2 - dy1
+    
+    if dw > 0 and dh > 0:
+        resampled_patch = src_patch.resize((dw, dh), Image.Resampling.LANCZOS)
+        if resampled_patch.mode != "RGBA":
+            resampled_patch = resampled_patch.convert("RGBA")
+        canvas.paste(resampled_patch, (dx1, dy1), resampled_patch)
+        
+    return canvas
 
 def main():
     parser = argparse.ArgumentParser(description="ORBINEX Satellite Image Processor")
@@ -167,24 +204,25 @@ def main():
                     s_bbox = [float(x.strip()) for x in args.scene_bbox.split(',')]
                     a_bbox = [float(x.strip()) for x in args.aoi_bbox.split(',')]
                     if len(s_bbox) == 4 and len(a_bbox) == 4:
-                        img = crop_to_aoi(img, s_bbox, a_bbox)
+                        img = crop_to_aoi(img, s_bbox, a_bbox, target_size=args.width)
                         cropped = True
                 except Exception as e:
                     sys.stderr.write(f"Warning: AOI crop skipped ({e})\n")
                     
-            # 4. Resample to target dimension preserving aspect ratio
-            cur_w, cur_h = img.size
-            if max(cur_w, cur_h) > args.width:
-                scale = args.width / float(max(cur_w, cur_h))
-                new_w = max(32, int(cur_w * scale))
-                new_h = max(32, int(cur_h * scale))
-                img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            # 4. Resample to target dimension preserving aspect ratio (if not already cropped)
+            if not cropped:
+                cur_w, cur_h = img.size
+                if max(cur_w, cur_h) > args.width:
+                    scale = args.width / float(max(cur_w, cur_h))
+                    new_w = max(32, int(cur_w * scale))
+                    new_h = max(32, int(cur_h * scale))
+                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                 
             # 5. Percentile Contrast Stretch & Nodata Transparency Masking
             img_arr = np.array(img)
             stretch_applied = False
             
-            # Compute nodata mask (near-black swath margin: R<=3 & G<=3 & B<=3)
+            # Compute nodata mask (near-black swath margin: R<=3 & G<=3 & B<=3 or alpha==0)
             # and check for large solid-white unobserved padding (R>=252 & G>=252 & B>=252)
             if img_arr.ndim == 3 and img_arr.shape[2] >= 3:
                 r_c = img_arr[:, :, 0]
@@ -192,13 +230,14 @@ def main():
                 b_c = img_arr[:, :, 2]
                 black_nodata = (r_c <= 3) & (g_c <= 3) & (b_c <= 3)
                 white_nodata = (r_c >= 252) & (g_c >= 252) & (b_c >= 252)
+                alpha_nodata = (img_arr[:, :, 3] == 0) if img_arr.shape[2] == 4 else np.zeros_like(black_nodata)
                 
                 # Treat white as nodata only if it forms large border regions (>25% of image)
                 white_ratio = float(np.mean(white_nodata))
                 if white_ratio > 0.25:
-                    nodata_mask = black_nodata | white_nodata
+                    nodata_mask = black_nodata | alpha_nodata | white_nodata
                 else:
-                    nodata_mask = black_nodata
+                    nodata_mask = black_nodata | alpha_nodata
                     
                 valid_pixel_pct = round(float(np.mean(~nodata_mask)) * 100.0, 2)
             else:
