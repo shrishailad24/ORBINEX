@@ -2490,6 +2490,33 @@ export default function Dashboard() {
         }}
         onLocate={(lat, lng, zoom) => setFlyToLocation({ lat, lng, zoom: zoom || 12, ts: Date.now() })}
         onOpenSatellite={() => { closeAllPopups('satellite'); setShowSatelliteCompare(true); }}
+        onOpenCamera={(cam) => {
+          setActiveCamera(cam);
+          setActiveLayers(prev => ({ ...prev, cctv: true }));
+          if (cam?.lat && cam?.lng) {
+            setFlyToLocation({ lat: cam.lat, lng: cam.lng, zoom: 15, ts: Date.now() });
+          }
+        }}
+        onToggleLayer={(layerId, visible) => {
+          setActiveLayers(prev => ({ ...prev, [layerId]: visible !== false }));
+        }}
+        onOpenPanel={(panelId) => {
+          if (panelId === 'satellite') {
+            closeAllPopups('satellite');
+            setShowSatelliteCompare(true);
+          } else if (panelId === 'draw') {
+            setShowDrawing(true);
+          } else if (panelId === 'layers') {
+            setShowLayers(true);
+          } else if (panelId === 'news' || panelId === 'alerts') {
+            setShowAlerts(true);
+          } else if (panelId === 'arcgis') {
+            setShowArcGIS(true);
+          }
+        }}
+        onStartDrawing={() => {
+          setShowDrawing(true);
+        }}
       />
 
       {/* ── OVERLAYS ── */}

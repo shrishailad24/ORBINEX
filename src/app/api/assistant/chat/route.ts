@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { buildGroundedContext, generateLocalFallbackResponse, type AssistantContext } from '@/lib/assistant-rag';
 import { buildHistoricalComparison, STRATEGIC_PRESETS } from '@/lib/satellite/historical-providers';
+import { parseCopilotAction, type CopilotAction } from '@/lib/assistant-copilot';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -198,27 +199,43 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 1. Build Grounded RAG Context
+    // 1. Detect Autonomous Platform Copilot Action (CCTV cameras, layers, navigation, tools)
+    const copilotAction = parseCopilotAction(message);
+
+    // 2. Build Grounded RAG Context
     const { contextBlock, sources } = await buildGroundedContext(message, context as AssistantContext);
 
-    // 2. Formulate System Prompt
-    let systemPrompt = `You are ORBINEX AI — a friendly, minimal, intelligent geospatial intelligence assistant built exclusively for this website (ORBINEX: Global Earth Observation & Geospatial Intelligence Platform).
+    // 3. Formulate System Prompt
+    let systemPrompt = `You are ORBINEX AI — the primary autonomous operator and geospatial intelligence copilot for this website (ORBINEX: Global Earth Observation & Geospatial Intelligence Platform).
 
-## CORE OPERATIONAL RULES (CHATGPT STYLE):
-1. MINIMAL & USER-FRIENDLY: Speak naturally, warmly, and clearly like ChatGPT. Keep answers brief (typically 2-3 short sentences or 2-3 crisp bullet points). Avoid wall-of-text answers, robotic preambles, and repetitive disclaimers.
-2. STRICTLY ABOUT THIS WEBSITE: You help with ORBINEX features and Earth observation:
-   - Comparing BEFORE vs AFTER satellite imagery (Copernicus Sentinel-2 Optical, Sentinel-1 SAR Radar, Landsat 8/9, Planet SkySat 50cm, and Pléiades Neo 30cm)
-   - Drawing an Area of Interest (AOI) anywhere on the globe to detect surface changes (vegetation/forest loss, water shifts, ground disturbance)
-   - Generating publication-grade 8-page PDF Satellite Intelligence Reports
-   - Viewing live global feeds: CCTV traffic cameras, live flights (ADS-B), ship tracking (AIS), earthquake alerts, wildfires, and weather
-   - Navigating to locations worldwide (including small towns, colleges, and rural plots)
-3. AGENTIC CAPABILITY: You HAVE the capability to generate before/after satellite comparison images and trigger 8-page georeferenced PDF intelligence reports! NEVER say "I cannot generate images or PDF files". Confirm that the before/after satellite imagery and PDF report download have been generated and displayed directly below your answer.
-4. CLEAN FORMATTING: Use clean markdown with bold highlights and concise bullet points. No unnecessary fluff.
-5. PREVENT REPETITIVE TELEMETRY: You MUST answer the user's specific question directly! If the user asks "What can I do on ORBINEX?", summarize platform capabilities. If the user asks "How do I compare imagery?", provide 3-step comparison instructions. If the user asks "How do I draw an AOI?", explain the drawing tools. NEVER output a repetitive generic message about active AOI telemetry unless the user specifically asks for it.
+## CORE OPERATIONAL DIRECTIVES (AUTONOMOUS SITE OPERATOR):
+1. AUTONOMOUS OPERATOR RULE: You HAVE direct control over this website! If the user asks for CCTV cameras, traffic feeds, flight tracking, maritime vessels, weather radar, wildfire thermal data, earthquakes, or satellite comparisons, YOU DIRECTLY OPERATE AND OPEN THEM FOR THE USER!
+   - NEVER say "I cannot open live CCTV feeds", "I cannot provide links to cameras", or "Go to the sidebar to find it".
+   - You HAVE already activated and opened the requested camera feed, layer, or tool for the user!
+   - Confirm that you have opened the live camera / layer / tool for them directly on their screen and navigated the primary map.
+2. MINIMAL & USER-FRIENDLY: Speak naturally, warmly, and clearly like ChatGPT. Keep answers crisp (2-3 short sentences or clear bullet points).
+3. SATELLITE & SENSOR INTEL: You compare dual-temporal satellite imagery (Sentinel-1 SAR, Sentinel-2 Optical, Landsat 8/9, Planet SkySat 50cm, and Pléiades Neo 30cm) and trigger 8-page PDF dossiers.
+4. LIVE SURVEILLANCE & CCTV: You can locate and open real-time civic, traffic, and security camera streams across India (Delhi, Mumbai, Bengaluru, Varanasi, Kolkata, Prayagraj, etc.), North America, Europe, and Asia-Pacific.
+5. CLEAN FORMATTING: Use clean markdown with bold highlights and bullet points.
 
 === RETRIEVED ORBINEX DATA CONTEXT ===
 ${contextBlock}
 ======================================`;
+
+    if (copilotAction) {
+      if (copilotAction.type === 'open_camera') {
+        const c = copilotAction.camera!;
+        systemPrompt += `\n\n### AUTONOMOUS ACTION EXECUTED:
+You have located and automatically OPENED the live public camera feed: "${c.name}" in ${c.city}, ${c.country} (${c.lat.toFixed(4)}° N, ${c.lng.toFixed(4)}° E)!
+The primary map has been navigated to this camera and the live stream card is active directly on the user's screen. Confirm that you have opened this live camera feed for them and summarize the location.`;
+      } else if (copilotAction.type === 'toggle_layer') {
+        systemPrompt += `\n\n### AUTONOMOUS ACTION EXECUTED:
+You have ACTIVATED the live layer: "${copilotAction.layerName}" directly on the user's primary map! Confirm that the layer is now visible and streaming telemetry.`;
+      } else if (copilotAction.type === 'open_panel') {
+        systemPrompt += `\n\n### AUTONOMOUS ACTION EXECUTED:
+You have LAUNCHED the tool panel: "${copilotAction.panelName}" for the user!`;
+      }
+    }
 
     if (satelliteAction) {
       systemPrompt += `\n\n### ACTION EXECUTED:
@@ -226,7 +243,7 @@ You have retrieved and generated the verified dual-temporal satellite observatio
 The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier" button are rendered directly underneath your answer. Summarize the key observations concisely and tell the user they can view the cards and download the full PDF dossier below.`;
     }
 
-    // 3. Assemble Chat Messages
+    // 4. Assemble Chat Messages
     const formattedMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
       { role: 'system', content: systemPrompt },
     ];
@@ -243,7 +260,7 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
 
     formattedMessages.push({ role: 'user', content: message });
 
-    // 4. Query Groq API
+    // 5. Query Groq API
     let answer = '';
     const modelsToTry = [
       'qwen/qwen3.8-27b',
@@ -285,7 +302,14 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
 
     if (!answer || answer.trim().length === 0) {
       // Intelligent grounded local fallback whenever external API quota or network is unavailable
-      if (satelliteAction) {
+      if (copilotAction?.type === 'open_camera') {
+        const cam = copilotAction.camera!;
+        answer = `I have located and opened a live public camera feed in **${cam.country}** for you:\n\n### 📹 ${cam.name}\n- **City & Region:** ${cam.city}, ${cam.region}\n- **Coordinates:** ${cam.lat.toFixed(4)}° N, ${cam.lng.toFixed(4)}° E\n- **Source:** ${cam.source}\n\nI have enabled the CCTV surveillance layer, navigated the primary map directly to this location, and opened the live feed player for you below.`;
+      } else if (copilotAction?.type === 'toggle_layer') {
+        answer = `I have activated the **${copilotAction.layerName}** layer directly on your primary map. You can now see real-time updates and tracked entities across the globe.`;
+      } else if (copilotAction?.type === 'open_panel') {
+        answer = `I have launched the **${copilotAction.panelName}** for you. The interactive panel is now active on your screen.`;
+      } else if (satelliteAction) {
         answer = `### 🛰️ Generated Satellite Observations for ${satelliteAction.locationName}\n\n- **Historical Baseline (BEFORE):** ${satelliteAction.beforeDate} (${satelliteAction.platform})\n- **Contemporary Pass (AFTER):** ${satelliteAction.afterDate} (${satelliteAction.platform})\n\nI have generated the dual-temporal satellite imagery and compiled the publication-grade **8-page Georeferenced PDF Dossier** below. You can inspect the images, open them in the split slider, or download the report directly.`;
       } else {
         answer = generateLocalFallbackResponse(message, context as AssistantContext);
@@ -296,6 +320,7 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
       answer,
       sources,
       satelliteAction,
+      copilotAction,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {

@@ -100,4 +100,59 @@ describe('AI Assistant Regression Tests (Intent Discrimination & Safeguards)', (
     expect(data.satelliteAction).toBeDefined();
     expect(data.satelliteAction.locationName).toContain('Bengaluru');
   });
+
+  it('DOES operate platform autonomously for user screenshot query: "Hello, give me one in India where anyone CC camera open"', async () => {
+    const req = new NextRequest('http://localhost:3000/api/assistant/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Hello, give me one in India where anyone CC camera open',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.copilotAction).toBeDefined();
+    expect(data.copilotAction.type).toBe('open_camera');
+    expect(data.copilotAction.camera).toBeDefined();
+    expect(data.copilotAction.camera.country).toBe('India');
+    expect(data.copilotAction.camera.streamUrl).toBeDefined();
+    expect(data.answer).not.toMatch(/I can't open live CCTV feeds/i);
+    expect(data.answer).not.toMatch(/I cannot provide direct links/i);
+  });
+
+  it('DOES operate platform for layer request: "show live flight tracking on the map"', async () => {
+    const req = new NextRequest('http://localhost:3000/api/assistant/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'show live flight tracking on the map',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.copilotAction).toBeDefined();
+    expect(data.copilotAction.type).toBe('toggle_layer');
+    expect(data.copilotAction.layerId).toBe('flights');
+  });
+
+  it('DOES operate platform for tool request: "open satellite comparison split slider"', async () => {
+    const req = new NextRequest('http://localhost:3000/api/assistant/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'open satellite comparison split slider',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.copilotAction).toBeDefined();
+    expect(data.copilotAction.type).toBe('open_panel');
+    expect(data.copilotAction.panelId).toBe('satellite');
+  });
 });
