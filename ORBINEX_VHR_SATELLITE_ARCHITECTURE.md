@@ -154,3 +154,46 @@ To ensure operational security and prevent uncontrolled commercial billing runaw
    - Asset URLs are strictly validated against an approved hostname allowlist (`*.airbus.com`, `*.planet.com`, `*.maxar.com`) to prevent SSRF vulnerabilities.
    - File downloads are bounded by a 500MB safety threshold with SHA-256 checksum verification.
 
+---
+
+## 7. Raster Co-Registration & Geospatial Alignment Engine (AI-05)
+
+Before feeding multi-temporal or multi-sensor observation pairs into specialist AI change detection models, ORBINEX executes automated raster co-registration:
+
+```mermaid
+flowchart LR
+    BeforeRaw["Before Observation<br/>CRS: EPSG:4326 / UTM / WebMercator<br/>Sensor: Sentinel-2 (10m)"] --> CoReg["AI-05 Co-Registration Engine<br/>aligner.py & alignment.ts"]
+    AfterRaw["After Observation<br/>CRS: EPSG:4326 / UTM / WebMercator<br/>Sensor: Pléiades Neo (0.3m)"] --> CoReg
+    
+    CoReg --> CRSProj["1. Reprojection to UTM EPSG:326XX / 327XX"]
+    CoReg --> GridResample["2. Common Grid Resampling & Nodata Preservation"]
+    CoReg --> SubPixelFFT["3. 2D Phase Cross-Correlation Sub-Pixel Shift"]
+    CoReg --> MetricCheck["4. Alignment Quality Assessment (RMSE, Overlap %)"]
+    
+    MetricCheck --> Pass["Status: GOOD / ACCEPTABLE<br/>Proceed to AI Change Detection"]
+    MetricCheck --> Reject["Status: FAILED (<25% overlap)<br/>Inhibit Change Scoring"]
+```
+
+### 7.1 Mathematical Foundation & Algorithms
+1. **Coordinate Reference System (CRS) Normalization:**
+   - Universal Transverse Mercator (UTM) zone calculation:
+     $$\text{Zone} = \lfloor(\text{lng} + 180) / 6\rfloor + 1$$
+     $$\text{EPSG} = 32600 + \text{Zone}\quad(\text{Northern Hemisphere}),\quad 32700 + \text{Zone}\quad(\text{Southern Hemisphere})$$
+   - Seamless bidirectional transforms between WGS84 (`EPSG:4326`) and Web Mercator (`EPSG:3857`).
+
+2. **Sub-Pixel Geometric Registration (Phase Cross-Correlation):**
+   - Normalized cross-power spectrum:
+     $$R = \frac{F_1(u, v) \cdot F_2^*(u, v)}{|F_1(u, v) \cdot F_2^*(u, v)|}$$
+     $$r(x, y) = \mathcal{F}^{-1}\{R\}$$
+   - Parabolic peak interpolation for sub-pixel displacement $\Delta x, \Delta y$:
+     $$\delta = \frac{r(k-1) - r(k+1)}{2(r(k-1) - 2r(k) + r(k+1))}$$
+   - Cubic spline resampling applying $(-\Delta x, -\Delta y)$ translation.
+
+3. **Multi-Resolution & Cross-Modality Disclosures:**
+   - Multi-resolution pairing (e.g. Sentinel-2 at 10m vs Pléiades Neo at 0.3m): common grid preserves finer resolution while disclosing the baseline resolution gap.
+   - Cross-modality (Optical vs SAR Radar): Sobel gradient magnitude phase correlation ensures structural boundary alignment without false spectral contrast artifacts.
+
+4. **Quality Thresholds & Rejection Safeguards:**
+   - Valid surface overlap $< 25\%$ or residual $\text{RMSE} > 3.0\text{ px}$: classified as `FAILED`, automatically inhibiting change detection to prevent false positives.
+
+

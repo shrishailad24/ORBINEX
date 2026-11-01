@@ -333,6 +333,47 @@ export default function SatelliteComparePanel({
   const [specialistAiError, setSpecialistAiError] = useState<string | null>(null);
   const [feedbackRecorded, setFeedbackRecorded] = useState(false);
 
+  // Phase 2 / AI-05: Raster Co-Registration & Geospatial Alignment Engine
+  const [alignmentResult, setAlignmentResult] = useState<any | null>(null);
+  const [aligningRasters, setAligningRasters] = useState(false);
+  const [showAlignmentDiagnostics, setShowAlignmentDiagnostics] = useState(false);
+
+  const handleRunCoRegistration = async () => {
+    if (!comparison?.before.matchedScene || !comparison?.after.matchedScene) return;
+    setAligningRasters(true);
+    try {
+      const beforeUrl = getSceneImageUrl(comparison.before.matchedScene, true);
+      const afterUrl = getSceneImageUrl(comparison.after.matchedScene, true);
+      const aoiBbox = drawnAOI?.bbox || currentBbox;
+
+      const res = await fetch('/api/satellite/align', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beforePath: beforeUrl,
+          afterPath: afterUrl,
+          aoiBbox,
+          beforeBbox: comparison.before.matchedScene.bbox || aoiBbox,
+          afterBbox: comparison.after.matchedScene.bbox || aoiBbox,
+          beforeSensor: comparison.before.matchedScene.platform || platform,
+          afterSensor: comparison.after.matchedScene.platform || platform,
+          beforeCrs: (comparison.before.matchedScene.metadata as any)?.crs || 'EPSG:4326',
+          afterCrs: (comparison.after.matchedScene.metadata as any)?.crs || 'EPSG:4326',
+          gridSize: 640,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAlignmentResult(data);
+      setShowAlignmentDiagnostics(true);
+    } catch (err: any) {
+      console.error('[ORBINEX] Alignment failed:', err);
+    } finally {
+      setAligningRasters(false);
+    }
+  };
+
   // Phase 2 / AI-04: Commercial VHR Discovery & Quoting
   const [vhrQuoteResult, setVhrQuoteResult] = useState<any | null>(null);
   const [vhrQuoting, setVhrQuoting] = useState(false);
@@ -2056,6 +2097,104 @@ export default function SatelliteComparePanel({
                     <span>◀ Drag slider left (Reveal AFTER)</span>
                     <span>Drag slider right (Reveal BEFORE) ▶</span>
                   </div>
+                </div>
+              )}
+
+              {/* AI-05: Raster Co-Registration & Geospatial Alignment Engine */}
+              {comparison.before.matchedScene && comparison.after.matchedScene && (
+                <div className="p-2.5 rounded bg-black/60 border border-cyan-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300 uppercase font-bold tracking-wider">
+                    <span className="flex items-center gap-1.5 text-cyan-400">
+                      <SlidersHorizontal className="w-3 h-3 text-[#00E5FF]" />
+                      <span>RASTER CO-REGISTRATION & ALIGNMENT (AI-05)</span>
+                    </span>
+                    {alignmentResult && (
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold border ${
+                        alignmentResult.quality_status === 'GOOD'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : alignmentResult.quality_status === 'ACCEPTABLE'
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                            : alignmentResult.quality_status === 'POOR'
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                              : 'bg-red-500/20 text-red-300 border-red-500/40'
+                      }`}>
+                        STATUS: {alignmentResult.quality_status}
+                      </span>
+                    )}
+                  </div>
+
+                  {!alignmentResult ? (
+                    <button
+                      onClick={handleRunCoRegistration}
+                      disabled={aligningRasters}
+                      className="w-full py-2 px-3 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-white font-bold text-[9.5px] uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_15px_rgba(0,229,255,0.2)] disabled:opacity-50"
+                    >
+                      {aligningRasters ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin text-cyan-400" />
+                          <span>CO-REGISTERING RASTER PAIR (SUB-PIXEL)...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Crosshair className="w-3 h-3 text-cyan-400" />
+                          <span>RUN GEOSPATIAL CO-REGISTRATION</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="p-2 rounded bg-white/[0.03] border border-white/10 space-y-1">
+                        <div className="flex items-center justify-between text-[8px] font-mono">
+                          <span className="text-slate-400">Sensor Pair:</span>
+                          <span className="text-white font-bold">{alignmentResult.sensors.before_sensor} ➔ {alignmentResult.sensors.after_sensor}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[8px] font-mono">
+                          <span className="text-slate-400">Grid Resolution:</span>
+                          <span className="text-cyan-400 font-bold">{alignmentResult.grid.common_gsd_meters} m/px ({alignmentResult.grid.width}x{alignmentResult.grid.height})</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[8px] font-mono">
+                          <span className="text-slate-400">CRS Transformation:</span>
+                          <span className="text-slate-300">{alignmentResult.grid.source_before_crs} ➔ {alignmentResult.grid.target_crs}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[8px] font-mono">
+                          <span className="text-slate-400">Sub-Pixel Shift / RMSE:</span>
+                          <span className="text-emerald-400 font-bold">
+                            Δ({alignmentResult.metrics.shift_x_pixels}, {alignmentResult.metrics.shift_y_pixels}) px · RMSE {alignmentResult.metrics.rmse_pixels} px ({alignmentResult.metrics.rmse_meters}m)
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[8px] font-mono">
+                          <span className="text-slate-400">Valid Surface Overlap:</span>
+                          <span className={`font-bold ${alignmentResult.metrics.valid_pixel_overlap_pct >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                            {alignmentResult.metrics.valid_pixel_overlap_pct}% ({alignmentResult.metrics.accepted_inliers}/{alignmentResult.metrics.matched_features} inliers)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-[7.5px] leading-tight text-slate-300 p-1.5 rounded bg-black/40 border border-white/5">
+                        {alignmentResult.suitability_summary}
+                      </div>
+
+                      {alignmentResult.disclosures && alignmentResult.disclosures.length > 0 && (
+                        <div className="space-y-0.5">
+                          {alignmentResult.disclosures.map((d: string, idx: number) => (
+                            <div key={idx} className="text-[7px] text-amber-300/80 italic flex items-start gap-1">
+                              <span>ℹ</span>
+                              <span>{d}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleRunCoRegistration}
+                        disabled={aligningRasters}
+                        className="w-full py-1 text-[7.5px] uppercase font-bold text-slate-400 hover:text-white transition-all flex items-center justify-center gap-1"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5" />
+                        <span>Re-Verify Co-Registration</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

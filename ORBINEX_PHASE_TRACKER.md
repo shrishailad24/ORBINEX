@@ -84,7 +84,15 @@ flowchart TD
     - Server-side authorized raster retrieval (`/api/satellite/vhr/retrieve`) with SSRF allowlisting, 500MB size threshold, and SHA-256 checksum generation.
     - Dedicated interactive Commercial VHR Discovery & Asset Archive section in `SatelliteComparePanel.tsx` supporting live filtering by provider, cloud cover, and date, plus direct injection into the dual-temporal split comparison engine.
     - Enforced the **Honest Communication Rule**: alerts users when small 2,000 sq ft plots require commercial sub-meter sensors rather than 10m open imagery.
-  - **AI-05 (Image Alignment & Reprojection):** Canonical geographic bounding box warping with zero lateral pixel shift.
+  - **AI-05 (Raster Co-Registration & Geospatial Alignment Engine):**
+    - Sub-pixel geometric co-registration using 2D Phase Cross-Correlation (FFT) with sub-pixel parabolic peak interpolation ($\Delta x, \Delta y$) and cubic spline translation.
+    - Automated CRS and projection normalization: WGS84 (`EPSG:4326`), Web Mercator (`EPSG:3857`), and automatic local UTM zone calculation (`EPSG:326XX` northern / `EPSG:327XX` southern hemisphere).
+    - Common comparison grid resampling with strict nodata transparency (alpha=0) preservation to prevent black edge masking.
+    - Native Ground Sampling Distance (GSD) resolution preservation with mandatory multi-resolution disclosure (e.g. Sentinel-2 10m paired with Pléiades Neo 0.3m).
+    - Cross-modality alignment: gradient magnitude phase correlation for Optical (Sentinel-2) vs SAR Radar (Sentinel-1).
+    - Quantitative alignment quality scoring: residual RMSE (pixels and meters), valid surface overlap percentage, correlation confidence, and 4-tier classification (`GOOD`, `ACCEPTABLE`, `POOR`, `FAILED`).
+    - Honest rejection: pairs with $<25\%$ valid surface overlap or degenerate footprints are strictly flagged as `FAILED` with change detection inhibited.
+    - Full interactive section in `SatelliteComparePanel.tsx` with one-click **"Run Co-Registration & Alignment"** action, live metric telemetry, and `/api/satellite/align` API endpoint.
   - **AI-06 (Split Slider):** Dual-temporal swipe slider with guaranteed non-identical date-matched observation passes.
 
 ---
