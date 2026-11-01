@@ -89,6 +89,9 @@ export function getWaybackTileUrl(date: string): string {
 
 function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, number, number, number]): SatelliteScene {
   const sceneBbox = obs.bbox || fallbackBbox;
+  const [minLng, minLat, maxLng, maxLat] = sceneBbox;
+  const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
+
   return {
     id: obs.id,
     platform: (obs.satellite as SatellitePlatform) || 'Sentinel-2',
@@ -98,8 +101,8 @@ function obsToScene(obs: NormalizedSatelliteObservation, fallbackBbox: [number, 
     cloudCover: obs.cloudCover,
     bbox: sceneBbox,
     coordinates: bboxToQuadCoordinates(sceneBbox),
-    thumbnailUrl: obs.thumbnailUrl || getWaybackTileUrl(obs.acquisitionDate),
-    visualUrl: obs.visualUrl || obs.thumbnailUrl || getWaybackTileUrl(obs.acquisitionDate),
+    thumbnailUrl: obs.thumbnailUrl && !obs.thumbnailUrl.includes('{z}') ? obs.thumbnailUrl : highResExportUrl,
+    visualUrl: obs.visualUrl && !obs.visualUrl.includes('{z}') ? obs.visualUrl : highResExportUrl,
     metadata: {
       resolutionMeters: obs.gsdMeters,
       instrument: obs.sensor,

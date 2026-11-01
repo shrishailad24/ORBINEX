@@ -209,17 +209,37 @@ export default function SatelliteComparePanel({
   };
 
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
-    if (!currentBbox) return scene?.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
+    if (!scene) return '';
+    const [minLng, minLat, maxLng, maxLat] = currentBbox || [0, 0, 0, 0];
+    const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
 
-    // Sub-meter High-Res Reference Basemap:
-    // Only when user explicitly selects High-Res
-    if (platform === 'High-Res') {
-      const [minLng, minLat, maxLng, maxLat] = currentBbox;
-      const rawUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
-      return `/api/satellite/asset?url=${encodeURIComponent(rawUrl)}`;
+    // Sub-meter High-Res Reference Basemap or VHR commercial platforms without direct raster:
+    if (
+      platform === 'High-Res' ||
+      platform === 'SkySat' ||
+      platform === 'Pléiades Neo' ||
+      !scene.thumbnailUrl ||
+      scene.thumbnailUrl.includes('{z}') ||
+      scene.thumbnailUrl.includes('{x}')
+    ) {
+      if (scene.thumbnailUrl && !scene.thumbnailUrl.includes('{z}') && !scene.thumbnailUrl.includes('{x}') && platform !== 'High-Res') {
+        if (cropped && scene.bbox && currentBbox) {
+          const params = new URLSearchParams({
+            url: scene.thumbnailUrl,
+            stretch: contrastStretch ? 'true' : 'false',
+            platform: scene.platform,
+            width: '640',
+            sceneBbox: scene.bbox.join(','),
+            aoiBbox: currentBbox.join(','),
+          });
+          return `/api/satellite/process?${params.toString()}`;
+        }
+        return `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}`;
+      }
+      return `/api/satellite/asset?url=${encodeURIComponent(highResExportUrl)}`;
     }
 
-    if (cropped && scene?.thumbnailUrl && scene.bbox) {
+    if (cropped && scene.thumbnailUrl && scene.bbox && currentBbox) {
       const params = new URLSearchParams({
         url: scene.thumbnailUrl,
         stretch: contrastStretch ? 'true' : 'false',
@@ -230,7 +250,7 @@ export default function SatelliteComparePanel({
       });
       return `/api/satellite/process?${params.toString()}`;
     }
-    return scene?.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
+    return scene.thumbnailUrl ? `/api/satellite/asset?url=${encodeURIComponent(scene.thumbnailUrl)}` : '';
   }, [currentBbox, surroundingRadiusKm, platform, contrastStretch]);
 
   // Global search state
@@ -1535,23 +1555,25 @@ export default function SatelliteComparePanel({
                     </div>
                     <div className="text-[8px] text-slate-400 truncate pt-1 border-t border-white/5">
                       Attribution: {
-                        activeTelemetry.platform === 'Pléiades Neo'
+                        activeTelemetry.platform.includes('Pléiades') || activeTelemetry.platform.includes('Airbus')
                           ? '© Airbus Defence and Space / CNES (Pléiades Neo 30cm PAN / 1.2m MS)'
-                          : activeTelemetry.platform === 'SkySat'
+                          : activeTelemetry.platform.includes('SkySat') || activeTelemetry.platform.includes('Planet')
                             ? '© Planet Labs PBC (SkySat 50cm Ortho Resolution)'
-                            : activeTelemetry.platform === 'WorldView-3'
+                            : activeTelemetry.platform.includes('WorldView') || activeTelemetry.platform.includes('Maxar')
                               ? '© Maxar Technologies (WorldView-3 31cm Native Resolution)'
-                              : activeTelemetry.platform === 'High-Res'
-                                ? '© Esri, Maxar, Earthstar Geographics, USDA, USGS (High-Res 0.5m/px)'
-                                : activeTelemetry.platform === 'Sentinel-1'
-                                  ? 'Contains modified Copernicus Sentinel-1 radar data [2024], processed by ORBINEX'
-                                  : 'Contains modified Copernicus Sentinel data [2024], processed by ORBINEX / Element84'
+                              : activeTelemetry.platform.includes('Landsat')
+                                ? 'USGS / NASA Landsat Program (30m Optical/Thermal)'
+                                : activeTelemetry.platform === 'High-Res'
+                                  ? '© Esri, Maxar, Earthstar Geographics, USDA, USGS (High-Res 0.5m/px)'
+                                  : activeTelemetry.platform === 'Sentinel-1'
+                                    ? 'Contains modified Copernicus Sentinel-1 radar data, processed by ORBINEX'
+                                    : 'Contains modified Copernicus Sentinel data, processed by ORBINEX / Element84'
                       }
                     </div>
 
                     {/* High-res asset links */}
                     <div className="pt-1 flex items-center justify-between">
-                      {activeTelemetry.visualUrl && (
+                      {activeTelemetry.visualUrl && !activeTelemetry.visualUrl.includes('{z}') && (
                         <a
                           href={activeTelemetry.visualUrl}
                           target="_blank"
@@ -1562,7 +1584,7 @@ export default function SatelliteComparePanel({
                           <ExternalLink className="w-2.5 h-2.5" />
                         </a>
                       )}
-                      {activeTelemetry.thumbnailUrl && (
+                      {activeTelemetry.thumbnailUrl && !activeTelemetry.thumbnailUrl.includes('{z}') && (
                         <a
                           href={`/api/satellite/process?url=${encodeURIComponent(activeTelemetry.thumbnailUrl)}&stretch=true&platform=${encodeURIComponent(activeTelemetry.platform)}`}
                           download={`orbinex-${activeTelemetry.id}-processed.png`}
@@ -1594,31 +1616,44 @@ export default function SatelliteComparePanel({
                     <img
                       src={getSceneImageUrl(comparison.after.matchedScene, true)}
                       alt="After Scene"
-                      className="absolute inset-0 w-full h-full object-cover"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (currentBbox && !target.dataset.retried) {
+                          target.dataset.retried = 'true';
+                          const [minLng, minLat, maxLng, maxLat] = currentBbox;
+                          target.src = `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`)}`;
+                        }
+                      }}
                     />
 
-                    {/* BEFORE IMAGE (Clipped overlay) */}
-                    <div
-                      className="absolute inset-0 overflow-hidden border-r border-[#00E5FF]"
-                      style={{ width: `${sliderPos}%` }}
-                    >
-                      <img
-                        src={getSceneImageUrl(comparison.before.matchedScene, true)}
-                        alt="Before Scene"
-                        className="absolute inset-0 max-w-none w-[346px] h-full object-cover"
-                      />
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-cyan-400 text-[8px] font-bold">
-                        BEFORE ({formatAcquisitionDate(comparison.before.matchedScene.datetime)})
-                      </div>
+                    {/* BEFORE IMAGE (Clipped overlay via clip-path) */}
+                    <img
+                      src={getSceneImageUrl(comparison.before.matchedScene, true)}
+                      alt="Before Scene"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        if (currentBbox && !target.dataset.retried) {
+                          target.dataset.retried = 'true';
+                          const [minLng, minLat, maxLng, maxLat] = currentBbox;
+                          target.src = `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`)}`;
+                        }
+                      }}
+                    />
+
+                    <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/80 text-cyan-400 text-[8px] font-bold pointer-events-none">
+                      BEFORE ({formatAcquisitionDate(comparison.before.matchedScene.datetime)})
                     </div>
 
-                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[#00E5FF] text-[8px] font-bold">
+                    <div className="absolute top-1 right-1 px-1.5 py-0.5 rounded bg-black/80 text-[#00E5FF] text-[8px] font-bold pointer-events-none">
                       AFTER ({formatAcquisitionDate(comparison.after.matchedScene.datetime)})
                     </div>
 
                     {/* Divider Line Handle */}
                     <div
-                      className="absolute top-0 bottom-0 pointer-events-none"
+                      className="absolute top-0 bottom-0 pointer-events-none border-r border-[#00E5FF]"
                       style={{ left: `${sliderPos}%` }}
                     >
                       <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#00E5FF] text-black flex items-center justify-center text-[8px] font-bold shadow-[0_0_8px_#00E5FF]">
