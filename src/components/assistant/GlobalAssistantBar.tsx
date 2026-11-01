@@ -134,12 +134,16 @@ function FormattedMessage({
 
     // 1. Bracketed PDF Download Action Button (e.g. "[📄 Download 8-Page PDF Dossier: ...]")
     if (
-      (/^\[\s*(?:📄|\uD83D\uDCC4)?\s*(?:Download|Interactive).*?PDF.*?\]$/i.test(trimmed)) ||
-      (/\[\s*(?:📄|\uD83D\uDCC4)?\s*Download 8-Page PDF/i.test(trimmed)) ||
-      (/^\[\s*Download\s+.*?PDF.*?\]$/i.test(trimmed))
+      /\[.*?Download.*?PDF.*?\]/i.test(trimmed) ||
+      /\[.*?PDF\s+Dossier.*?\]/i.test(trimmed) ||
+      /\[.*?Download.*?Dossier.*?\]/i.test(trimmed)
     ) {
       flushList(idx);
-      const cleanLabel = trimmed.replace(/^\[\s*(?:📄|\uD83D\uDCC4)?\s*/, '').replace(/\s*\]$/, '');
+      const cleanLabel = trimmed
+        .replace(/^\[[^a-zA-Z0-9]*/, '')
+        .replace(/[^a-zA-Z0-9)\]]*\]$/, '')
+        .replace(/\]$/, '')
+        .trim();
       elements.push(
         <div key={`pdf-btn-${idx}`} className="my-2.5">
           <button
@@ -166,9 +170,13 @@ function FormattedMessage({
     }
 
     // 2. Bracketed Slider Action Button (e.g. "[📷 Interactive Before/After Slider: ...]")
-    if (/^\[\s*(?:📷|\uD83D\uDCF7)?\s*Interactive Before\/After Slider.*?\]$/i.test(trimmed)) {
+    if (/\[.*?Slider.*?\]/i.test(trimmed) || /\[.*?Before\/After.*?\]/i.test(trimmed)) {
       flushList(idx);
-      const cleanLabel = trimmed.replace(/^\[\s*(?:📷|\uD83D\uDCF7)?\s*/, '').replace(/\s*\]$/, '');
+      const cleanLabel = trimmed
+        .replace(/^\[[^a-zA-Z0-9]*/, '')
+        .replace(/[^a-zA-Z0-9)\]]*\]$/, '')
+        .replace(/\]$/, '')
+        .trim();
       elements.push(
         <div key={`slider-btn-${idx}`} className="my-2">
           <button
@@ -774,8 +782,8 @@ export default function GlobalAssistantBar({
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">
-                                  Observation Pending
+                                <div className="w-full h-full flex flex-col items-center justify-center text-[8px] text-amber-300/80 p-2 text-center bg-black/90">
+                                  <span>No observation found for target date</span>
                                 </div>
                               )}
                               <div className="absolute top-1 left-1 px-1 py-0.5 rounded bg-black/80 text-[7.5px] text-cyan-300 font-mono">
@@ -798,8 +806,8 @@ export default function GlobalAssistantBar({
                                   className="w-full h-full object-cover"
                                 />
                               ) : (
-                                <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">
-                                  Observation Pending
+                                <div className="w-full h-full flex flex-col items-center justify-center text-[8px] text-amber-300/80 p-2 text-center bg-black/90">
+                                  <span>No observation found for target date</span>
                                 </div>
                               )}
                               <div className="absolute top-1 left-1 px-1 py-0.5 rounded bg-black/80 text-[7.5px] text-[#00E5FF] font-mono">

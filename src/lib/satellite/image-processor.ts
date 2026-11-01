@@ -17,6 +17,8 @@ export interface ProcessSatelliteImageOptions {
   stretch?: boolean;
   platform?: SatellitePlatform;
   targetWidth?: number;
+  sceneId?: string;
+  datetime?: string;
 }
 
 export interface SatelliteProcessedMetadata {
@@ -62,6 +64,8 @@ function computeCacheKey(opts: ProcessSatelliteImageOptions): string {
     stretch: Boolean(opts.stretch),
     platform: opts.platform || 'Sentinel-2',
     w: opts.targetWidth || 768,
+    sceneId: opts.sceneId || '',
+    datetime: opts.datetime ? opts.datetime.split('T')[0] : '',
   });
   return crypto.createHash('sha256').update(payload).digest('hex');
 }

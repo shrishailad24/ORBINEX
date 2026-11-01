@@ -144,13 +144,19 @@ export async function POST(req: NextRequest) {
         const beforeScene = comparison?.before?.matchedScene;
         const afterScene = comparison?.after?.matchedScene;
 
-        const beforeImgUrl = beforeScene?.thumbnailUrl
-          ? `/api/satellite/process?url=${encodeURIComponent(beforeScene.thumbnailUrl)}&stretch=true&platform=Sentinel-2&width=640&sceneBbox=${(beforeScene.bbox || aoiBbox).join(',')}&aoiBbox=${aoiBbox.join(',')}`
-          : `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${aoiBbox.join(',')}&bboxSR=4326&size=640,640&f=image`)}`;
+        const isIdentical = Boolean(
+          beforeScene && afterScene && (beforeScene.id === afterScene.id || beforeScene.thumbnailUrl === afterScene.thumbnailUrl)
+        );
 
-        const afterImgUrl = afterScene?.thumbnailUrl
-          ? `/api/satellite/process?url=${encodeURIComponent(afterScene.thumbnailUrl)}&stretch=true&platform=Sentinel-2&width=640&sceneBbox=${(afterScene.bbox || aoiBbox).join(',')}&aoiBbox=${aoiBbox.join(',')}`
-          : `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${aoiBbox.join(',')}&bboxSR=4326&size=640,640&f=image`)}`;
+        let beforeImgUrl = '';
+        let afterImgUrl = '';
+
+        if (beforeScene?.thumbnailUrl && !isIdentical) {
+          beforeImgUrl = `/api/satellite/process?url=${encodeURIComponent(beforeScene.thumbnailUrl)}&stretch=true&platform=Sentinel-2&width=640&sceneBbox=${(beforeScene.bbox || aoiBbox).join(',')}&aoiBbox=${aoiBbox.join(',')}&sceneId=${encodeURIComponent(beforeScene.id)}&datetime=${encodeURIComponent(beforeScene.datetime)}`;
+        }
+        if (afterScene?.thumbnailUrl && !isIdentical) {
+          afterImgUrl = `/api/satellite/process?url=${encodeURIComponent(afterScene.thumbnailUrl)}&stretch=true&platform=Sentinel-2&width=640&sceneBbox=${(afterScene.bbox || aoiBbox).join(',')}&aoiBbox=${aoiBbox.join(',')}&sceneId=${encodeURIComponent(afterScene.id)}&datetime=${encodeURIComponent(afterScene.datetime)}`;
+        }
 
         satelliteAction = {
           type: 'satellite_comparison',
@@ -161,21 +167,21 @@ export async function POST(req: NextRequest) {
           beforeDate: beforeScene?.datetime ? beforeScene.datetime.split('T')[0] : beforeDate,
           afterDate: afterScene?.datetime ? afterScene.datetime.split('T')[0] : afterDate,
           platform: 'Copernicus Sentinel-2 Optical (10m)',
-          beforeImageUrl: beforeImgUrl,
-          afterImageUrl: afterImgUrl,
-          beforeSceneId: beforeScene?.id || `S2A_${beforeDate.replace(/-/g, '')}`,
-          afterSceneId: afterScene?.id || `S2B_${afterDate.replace(/-/g, '')}`,
-          cloudCoverBefore: beforeScene?.cloudCover ?? 5.0,
-          cloudCoverAfter: afterScene?.cloudCover ?? 1.5,
+          beforeImageUrl: beforeImgUrl || undefined,
+          afterImageUrl: afterImgUrl || undefined,
+          beforeSceneId: beforeScene?.id || undefined,
+          afterSceneId: afterScene?.id || undefined,
+          cloudCoverBefore: beforeScene?.cloudCover ?? null,
+          cloudCoverAfter: afterScene?.cloudCover ?? null,
           aoiBbox,
           areaKm2: 100,
-          changeSummary: `Dual-temporal observation of ${targetLoc.name} showing surface reflectance shifts between ${beforeDate} and ${afterDate}.`,
+          changeSummary: `Dual-temporal observation of ${targetLoc.name} comparing ${beforeDate} with ${afterDate}.`,
         };
       } catch (e) {
         console.warn('[ORBINEX-AI] Satellite auto-fetch failed:', e);
       }
 
-      // Guaranteed fallback so satelliteAction is never lost if requested
+      // Explicit status if satellite observation could not be retrieved
       if (!satelliteAction) {
         satelliteAction = {
           type: 'satellite_comparison',
@@ -186,15 +192,15 @@ export async function POST(req: NextRequest) {
           beforeDate,
           afterDate,
           platform: 'Copernicus Sentinel-2 Optical (10m)',
-          beforeImageUrl: `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${aoiBbox.join(',')}&bboxSR=4326&size=640,640&f=image`)}`,
-          afterImageUrl: `/api/satellite/asset?url=${encodeURIComponent(`https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${aoiBbox.join(',')}&bboxSR=4326&size=640,640&f=image`)}`,
-          beforeSceneId: `S2A_${beforeDate.replace(/-/g, '')}`,
-          afterSceneId: `S2B_${afterDate.replace(/-/g, '')}`,
-          cloudCoverBefore: 4.5,
-          cloudCoverAfter: 1.2,
+          beforeImageUrl: undefined,
+          afterImageUrl: undefined,
+          beforeSceneId: undefined,
+          afterSceneId: undefined,
+          cloudCoverBefore: null,
+          cloudCoverAfter: null,
           aoiBbox,
           areaKm2: 100,
-          changeSummary: `Dual-temporal Earth observation of ${targetLoc.name} showing surface shifts between ${beforeDate} and ${afterDate}.`,
+          changeSummary: `No suitable satellite observations found for ${targetLoc.name} on the requested target dates.`,
         };
       }
     }
@@ -300,8 +306,13 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
       }
     }
 
-    if (!answer || answer.trim().length === 0) {
-      // Intelligent grounded local fallback whenever external API quota or network is unavailable
+    const isRefusal =
+      /i (can't|cannot|do not have the ability to|am unable to) (open|access|stream|provide direct links to) (live )?(cctv|camera|feed|stream)/i.test(answer) ||
+      /as an ai.*(cannot|can't) (open|view|access|stream)/i.test(answer) ||
+      /i can't open live/i.test(answer);
+
+    if (!answer || answer.trim().length === 0 || (copilotAction && isRefusal)) {
+      // Intelligent grounded local fallback whenever external API quota or refusal is detected
       if (copilotAction?.type === 'open_camera') {
         const cam = copilotAction.camera!;
         answer = `I have located and opened a live public camera feed in **${cam.country}** for you:\n\n### 📹 ${cam.name}\n- **City & Region:** ${cam.city}, ${cam.region}\n- **Coordinates:** ${cam.lat.toFixed(4)}° N, ${cam.lng.toFixed(4)}° E\n- **Source:** ${cam.source}\n\nI have enabled the CCTV surveillance layer, navigated the primary map directly to this location, and opened the live feed player for you below.`;

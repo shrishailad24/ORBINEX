@@ -147,6 +147,44 @@ def resolve_image(path_or_url, temp_dir):
             print(f"[resolve_image] base64 decode error: {e}", file=sys.stderr)
             return None
 
+    # 1. Direct Cache Resolution for /api/satellite/process to bypass HTTP loopback
+    if isinstance(path_or_url, str) and "/api/satellite/process" in path_or_url:
+        try:
+            import urllib.parse, hashlib, json
+            parsed = urllib.parse.urlparse(path_or_url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            
+            raw_url = qs.get('url', [''])[0]
+            s_bbox = [float(x.strip()) for x in qs['sceneBbox'][0].split(',')] if 'sceneBbox' in qs else None
+            a_bbox = [float(x.strip()) for x in qs['aoiBbox'][0].split(',')] if 'aoiBbox' in qs else None
+            stretch = qs.get('stretch', ['false'])[0].lower() == 'true'
+            platform = qs.get('platform', ['Sentinel-2'])[0]
+            target_w = int(qs.get('width', ['768'])[0])
+            scene_id = qs.get('sceneId', [''])[0]
+            dt = qs.get('datetime', [''])[0].split('T')[0] if 'datetime' in qs else ''
+            
+            payload = json.dumps({
+                "url": raw_url,
+                "sBbox": s_bbox,
+                "aBbox": a_bbox,
+                "stretch": stretch,
+                "platform": platform,
+                "w": target_w,
+                "sceneId": scene_id,
+                "datetime": dt
+            }, separators=(',', ':'))
+            cache_key = hashlib.sha256(payload.encode('utf-8')).hexdigest()
+            cache_file = os.path.join(os.getcwd(), ".cache", "satellite-processed", f"{cache_key}.png")
+            if os.path.exists(cache_file) and os.path.getsize(cache_file) > 100:
+                optimize_image_for_pdf(cache_file)
+                return cache_file
+                
+            # If not yet in cache, directly use raw_url if valid
+            if raw_url and (raw_url.startswith("http://") or raw_url.startswith("https://")):
+                target_url = raw_url
+        except Exception as e:
+            print(f"[resolve_image] cache resolution note: {e}", file=sys.stderr)
+
     # Resolve local dev server relative paths
     target_url = path_or_url
     if isinstance(target_url, str) and target_url.startswith("/"):

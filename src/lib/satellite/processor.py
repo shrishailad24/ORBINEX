@@ -147,14 +147,6 @@ def crop_to_aoi(img, scene_bbox, aoi_bbox, target_size=640):
     
     dw = dx2 - dx1
     dh = dy2 - dy1
-    
-    # If the computed destination occupies less than 65% of the canvas due to edge-cutting or large radius,
-    # expand the valid patch to fill the frame rather than showing mostly black empty margin
-    if (dw < out_w * 0.65) or (dh < out_h * 0.65):
-        canvas = src_patch.resize((out_w, out_h), Image.Resampling.LANCZOS)
-        if canvas.mode != "RGBA":
-            canvas = canvas.convert("RGBA")
-        return canvas
 
     if dw > 0 and dh > 0:
         resampled_patch = src_patch.resize((dw, dh), Image.Resampling.LANCZOS)

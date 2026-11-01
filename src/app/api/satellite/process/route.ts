@@ -44,28 +44,40 @@ export async function GET(req: Request) {
   const stretch = searchParams.get('stretch') !== 'false';
   const platform = (searchParams.get('platform') as SatellitePlatform) || 'Sentinel-2';
   const targetWidth = Math.max(64, Math.min(2048, parseInt(searchParams.get('width') || '768', 10)));
+  const sceneId = searchParams.get('sceneId') || undefined;
+  const datetime = searchParams.get('datetime') || undefined;
 
-  // If a WMTS tile template URL (with {z}/{y}/{x}) is passed, convert to direct high-res raster export
+  // Handle WMTS tile template URLs with real temporal parameters (NASA GIBS)
   if (rawUrl.includes('{z}') || rawUrl.includes('{x}')) {
-    const targetBbox = aoiBbox || sceneBbox || [-180, -90, 180, 90];
-    const [minLng, minLat, maxLng, maxLat] = targetBbox;
-    const aspect = Math.abs(maxLng - minLng) / Math.max(1e-6, Math.abs(maxLat - minLat));
-    const targetHeight = Math.max(64, Math.min(2048, Math.round(targetWidth / (aspect || 1.0))));
-    const exportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=${targetWidth},${targetHeight}&f=image`;
-    const exportRes = await fetch(exportUrl);
-    if (!exportRes.ok) {
-      return NextResponse.json({ error: 'Failed to export basemap raster' }, { status: 502 });
+    if (rawUrl.includes('gibs.earthdata.nasa.gov')) {
+      const targetBbox = aoiBbox || sceneBbox || [-180, -90, 180, 90];
+      const [minLng, minLat, maxLng, maxLat] = targetBbox;
+      const cLng = (minLng + maxLng) / 2;
+      const cLat = (minLat + maxLat) / 2;
+      const z = 9;
+      const x = Math.floor(((cLng + 180) / 360) * Math.pow(2, z));
+      const latRad = (cLat * Math.PI) / 180;
+      const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * Math.pow(2, z));
+      const actualTileUrl = rawUrl.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
+      const tileRes = await fetch(actualTileUrl);
+      if (tileRes.ok) {
+        const buf = Buffer.from(await tileRes.arrayBuffer());
+        return new NextResponse(new Uint8Array(buf), {
+          status: 200,
+          headers: {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': String(buf.length),
+            'Cache-Control': 'public, max-age=86400',
+            'X-Satellite-Platform': 'NASA-GIBS',
+          },
+        });
+      }
     }
-    const buf = Buffer.from(await exportRes.arrayBuffer());
-    return new NextResponse(new Uint8Array(buf), {
-      status: 200,
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Content-Length': String(buf.length),
-        'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
-        'X-Satellite-Platform': platform,
-      },
-    });
+
+    return NextResponse.json(
+      { error: 'Invalid or unresolved tile template. Authentic satellite observation required.' },
+      { status: 400 }
+    );
   }
 
   try {
@@ -76,6 +88,8 @@ export async function GET(req: Request) {
       stretch,
       platform,
       targetWidth,
+      sceneId,
+      datetime,
     });
 
     if (format === 'json') {

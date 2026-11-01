@@ -51,20 +51,26 @@ export interface SatelliteScene {
   };
 }
 
+export interface HistoricalObservationSlot {
+  targetDate: string;
+  matchedScene: SatelliteScene | null;
+  tileUrl?: string;
+  hasValidObservation?: boolean;
+  deltaDays?: number;
+  unavailabilityReason?: string;
+  temporalWarning?: string;
+  actualAcquisitionDate?: string;
+}
+
 export interface HistoricalComparisonPair {
   locationName: string;
   center: { lat: number; lng: number };
   zoom: number;
-  before: {
-    targetDate: string;
-    matchedScene: SatelliteScene | null;
-    tileUrl?: string;
-  };
-  after: {
-    targetDate: string;
-    matchedScene: SatelliteScene | null;
-    tileUrl?: string;
-  };
+  before: HistoricalObservationSlot;
+  after: HistoricalObservationSlot;
+  temporalGapDays?: number;
+  temporalAnomalyWarning?: string;
+  spatialAlignmentStatus?: 'ALIGNED' | 'PARTIAL' | 'MISALIGNED' | 'UNAVAILABLE';
 }
 
 export interface STACSearchQuery {

@@ -91,11 +91,28 @@ function selectBestOverlappingPair(
   beforeCandidates: SatelliteScene[],
   afterCandidates: SatelliteScene[],
   focalLat: number,
-  focalLng: number
+  focalLng: number,
+  targetBeforeDate?: string,
+  targetAfterDate?: string,
+  aoiBbox?: [number, number, number, number]
 ): [SatelliteScene | null, SatelliteScene | null] {
   if (!beforeCandidates.length && !afterCandidates.length) return [null, null];
   if (!beforeCandidates.length) return [null, afterCandidates[0]];
   if (!afterCandidates.length) return [beforeCandidates[0], null];
+
+  const beforeTargetTime = targetBeforeDate ? Date.parse(targetBeforeDate) : null;
+  const afterTargetTime = targetAfterDate ? Date.parse(targetAfterDate) : null;
+
+  const getAoiIntersectionRatio = (sBbox: [number, number, number, number] | undefined, aBbox: [number, number, number, number]): number => {
+    if (!sBbox || !aBbox) return 1.0;
+    const iMinLng = Math.max(aBbox[0], sBbox[0]);
+    const iMinLat = Math.max(aBbox[1], sBbox[1]);
+    const iMaxLng = Math.min(aBbox[2], sBbox[2]);
+    const iMaxLat = Math.min(aBbox[3], sBbox[3]);
+    if (iMinLng >= iMaxLng || iMinLat >= iMaxLat) return 0;
+    const aArea = Math.max(1e-9, (aBbox[2] - aBbox[0]) * (aBbox[3] - aBbox[1]));
+    return ((iMaxLng - iMinLng) * (iMaxLat - iMinLat)) / aArea;
+  };
 
   let bestScore = -Infinity;
   let bestPair: [SatelliteScene, SatelliteScene] = [beforeCandidates[0], afterCandidates[0]];
@@ -103,11 +120,15 @@ function selectBestOverlappingPair(
   for (const b of beforeCandidates) {
     const bBox = b.bbox;
     const bContains = bBox ? (focalLng >= bBox[0] && focalLng <= bBox[2] && focalLat >= bBox[1] && focalLat <= bBox[3]) : false;
+    const deltaDaysB = beforeTargetTime && b.datetime ? Math.abs(Date.parse(b.datetime) - beforeTargetTime) / 86400000 : 0;
+    const aoiCoverB = aoiBbox ? getAoiIntersectionRatio(bBox, aoiBbox) : 1.0;
 
     for (const a of afterCandidates) {
       const isIdentical = (b.id && a.id && b.id === a.id) || (b.thumbnailUrl && a.thumbnailUrl && b.thumbnailUrl === a.thumbnailUrl);
       const aBox = a.bbox;
       const aContains = aBox ? (focalLng >= aBox[0] && focalLng <= aBox[2] && focalLat >= aBox[1] && focalLat <= aBox[3]) : false;
+      const deltaDaysA = afterTargetTime && a.datetime ? Math.abs(Date.parse(a.datetime) - afterTargetTime) / 86400000 : 0;
+      const aoiCoverA = aoiBbox ? getAoiIntersectionRatio(aBox, aoiBbox) : 1.0;
 
       let overlapArea = 0;
       let iou = 0;
@@ -127,13 +148,28 @@ function selectBestOverlappingPair(
       }
 
       let score = 0;
-      if (bContains) score += 500;
-      if (aContains) score += 500;
-      score += iou * 300;
-      if (overlapArea > 0) score += 100;
-      if (isIdentical) score -= 1000;
-      if (typeof b.cloudCover === 'number') score -= b.cloudCover * 0.5;
-      if (typeof a.cloudCover === 'number') score -= a.cloudCover * 0.5;
+      if (bContains) score += 600;
+      if (aContains) score += 600;
+      score += iou * 400;
+      if (overlapArea > 0) score += 150;
+
+      // Heavy reward for complete AOI coverage (>85%) and severe penalty for edge truncation (<65%)
+      if (aoiCoverB >= 0.85) score += 1500;
+      else if (aoiCoverB < 0.65) score -= (1.0 - aoiCoverB) * 4000;
+
+      if (aoiCoverA >= 0.85) score += 1500;
+      else if (aoiCoverA < 0.65) score -= (1.0 - aoiCoverA) * 4000;
+      
+      // Penalize temporal divergence: scenes closest to requested target date are strongly preferred
+      score -= deltaDaysB * 8;
+      score -= deltaDaysA * 8;
+
+      // Heavy penalty for identical scenes across different requested dates
+      if (isIdentical) score -= 50000;
+      
+      // Penalize cloud cover
+      if (typeof b.cloudCover === 'number') score -= b.cloudCover * 1.5;
+      if (typeof a.cloudCover === 'number') score -= a.cloudCover * 1.5;
 
       if (score > bestScore) {
         bestScore = score;
@@ -191,14 +227,19 @@ export async function buildHistoricalComparison(
       zoom: 12,
       before: {
         targetDate: cleanBefore,
+        actualAcquisitionDate: cleanBefore,
         matchedScene: null,
         tileUrl: getGibsTileUrl(cleanBefore),
+        hasValidObservation: true,
       },
       after: {
         targetDate: cleanAfter,
+        actualAcquisitionDate: cleanAfter,
         matchedScene: null,
         tileUrl: getGibsTileUrl(cleanAfter),
+        hasValidObservation: true,
       },
+      spatialAlignmentStatus: 'ALIGNED',
     };
   }
 
@@ -262,7 +303,15 @@ export async function buildHistoricalComparison(
     const bestBefore = beforeRes?.rankedBestObservation;
     const bestAfter = afterRes?.rankedBestObservation;
 
-    const [fbBefore, fbAfter] = selectBestOverlappingPair(fallbackBeforeScenes, fallbackAfterScenes, lat, lng);
+    const [fbBefore, fbAfter] = selectBestOverlappingPair(
+      fallbackBeforeScenes,
+      fallbackAfterScenes,
+      lat,
+      lng,
+      cleanBefore,
+      cleanAfter,
+      fallbackBbox
+    );
 
     const sceneBefore = bestBefore ? obsToScene(bestBefore, fallbackBbox) : (fbBefore ? { ...fbBefore } : null);
     const sceneAfter = bestAfter ? obsToScene(bestAfter, fallbackBbox) : (fbAfter ? { ...fbAfter } : null);
@@ -313,20 +362,48 @@ export async function buildHistoricalComparison(
       }
     }
 
+    const deltaDaysB = sceneBefore?.datetime
+      ? Math.round(Math.abs(Date.parse(sceneBefore.datetime) - Date.parse(cleanBefore)) / 86400000)
+      : undefined;
+    const deltaDaysA = sceneAfter?.datetime
+      ? Math.round(Math.abs(Date.parse(sceneAfter.datetime) - Date.parse(cleanAfter)) / 86400000)
+      : undefined;
+
+    const isIdent = Boolean(
+      sceneBefore &&
+      sceneAfter &&
+      (sceneBefore.id === sceneAfter.id || (sceneBefore.thumbnailUrl && sceneBefore.thumbnailUrl === sceneAfter.thumbnailUrl))
+    );
+
+    const hasBefore = Boolean(sceneBefore && sceneBefore.thumbnailUrl && (deltaDaysB == null || deltaDaysB <= 65) && !isIdent);
+    const hasAfter = Boolean(sceneAfter && sceneAfter.thumbnailUrl && (deltaDaysA == null || deltaDaysA <= 65) && !isIdent);
+
     return {
       locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,
       center: { lat, lng },
       zoom: 15,
       before: {
         targetDate: cleanBefore,
-        matchedScene: sceneBefore,
-        tileUrl: getWaybackTileUrl(cleanBefore),
+        actualAcquisitionDate: sceneBefore?.datetime ? sceneBefore.datetime.slice(0, 10) : undefined,
+        matchedScene: hasBefore ? sceneBefore : null,
+        tileUrl: getGibsTileUrl(cleanBefore),
+        hasValidObservation: hasBefore,
+        deltaDays: deltaDaysB,
+        unavailabilityReason: hasBefore ? undefined : 'No suitable satellite observation found for this date and AOI.',
+        temporalWarning: deltaDaysB && deltaDaysB > 14 ? `Actual pass is ${deltaDaysB}d from target date` : undefined,
       },
       after: {
         targetDate: cleanAfter,
-        matchedScene: sceneAfter,
-        tileUrl: getWaybackTileUrl(cleanAfter),
+        actualAcquisitionDate: sceneAfter?.datetime ? sceneAfter.datetime.slice(0, 10) : undefined,
+        matchedScene: hasAfter ? sceneAfter : null,
+        tileUrl: getGibsTileUrl(cleanAfter),
+        hasValidObservation: hasAfter,
+        deltaDays: deltaDaysA,
+        unavailabilityReason: hasAfter ? undefined : 'No suitable satellite observation found for this date and AOI.',
+        temporalWarning: deltaDaysA && deltaDaysA > 14 ? `Actual pass is ${deltaDaysA}d from target date` : undefined,
       },
+      temporalGapDays: sceneBefore?.datetime && sceneAfter?.datetime ? Math.round(Math.abs(Date.parse(sceneAfter.datetime) - Date.parse(sceneBefore.datetime)) / 86400000) : undefined,
+      spatialAlignmentStatus: hasBefore && hasAfter ? 'ALIGNED' : 'UNAVAILABLE',
     };
   }
 
@@ -340,7 +417,7 @@ export async function buildHistoricalComparison(
       radiusKm,
       bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 35,
-      limit: 12,
+      limit: 16,
     }),
     searchSatelliteScenes({
       lat,
@@ -350,13 +427,54 @@ export async function buildHistoricalComparison(
       radiusKm,
       bbox,
       maxCloudCover: platform === 'Sentinel-1' ? undefined : 35,
-      limit: 12,
+      limit: 16,
     }),
   ]);
 
-  const [bestB, bestA] = selectBestOverlappingPair(beforeScenes, afterScenes, lat, lng);
+  const [bestB, bestA] = selectBestOverlappingPair(beforeScenes, afterScenes, lat, lng, cleanBefore, cleanAfter, bbox);
   beforeScene = bestB;
   afterScene = bestA;
+
+  const deltaDaysBefore = beforeScene?.datetime
+    ? Math.round(Math.abs(Date.parse(beforeScene.datetime) - Date.parse(cleanBefore)) / 86400000)
+    : undefined;
+  const deltaDaysAfter = afterScene?.datetime
+    ? Math.round(Math.abs(Date.parse(afterScene.datetime) - Date.parse(cleanAfter)) / 86400000)
+    : undefined;
+
+  const isIdentical = Boolean(
+    beforeScene &&
+    afterScene &&
+    (beforeScene.id === afterScene.id || (beforeScene.thumbnailUrl && beforeScene.thumbnailUrl === afterScene.thumbnailUrl))
+  );
+
+  const hasValidBefore = Boolean(beforeScene && beforeScene.thumbnailUrl && (deltaDaysBefore == null || deltaDaysBefore <= 65) && !isIdentical);
+  const hasValidAfter = Boolean(afterScene && afterScene.thumbnailUrl && (deltaDaysAfter == null || deltaDaysAfter <= 65) && !isIdentical);
+
+  let temporalGapDays: number | undefined;
+  let temporalAnomalyWarning: string | undefined;
+  if (beforeScene?.datetime && afterScene?.datetime && !isIdentical) {
+    temporalGapDays = Math.round(Math.abs(Date.parse(afterScene.datetime) - Date.parse(beforeScene.datetime)) / 86400000);
+    if (temporalGapDays > 1460) {
+      temporalAnomalyWarning = `Extended multi-year gap (${(temporalGapDays / 365.25).toFixed(1)} years / ${temporalGapDays} days). Ecological succession and seasonal shifts apply.`;
+    }
+  }
+
+  const unavailReasonBefore = !beforeScene
+    ? 'No suitable satellite observation found for this date and AOI.'
+    : deltaDaysBefore && deltaDaysBefore > 65
+      ? `Nearest observation is ${deltaDaysBefore} days away from requested target date (${beforeScene.datetime.slice(0, 10)} vs ${cleanBefore}). Exceeds allowable temporal threshold.`
+      : isIdentical
+        ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
+        : undefined;
+
+  const unavailReasonAfter = !afterScene
+    ? 'No suitable satellite observation found for this date and AOI.'
+    : deltaDaysAfter && deltaDaysAfter > 65
+      ? `Nearest observation is ${deltaDaysAfter} days away from requested target date (${afterScene.datetime.slice(0, 10)} vs ${cleanAfter}). Exceeds allowable temporal threshold.`
+      : isIdentical
+        ? 'Both dates resolved to identical satellite imagery. Genuine multi-temporal comparison unavailable.'
+        : undefined;
 
   return {
     locationName: `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? 'E' : 'W'}`,
@@ -364,13 +482,26 @@ export async function buildHistoricalComparison(
     zoom: 13,
     before: {
       targetDate: cleanBefore,
-      matchedScene: beforeScene,
+      actualAcquisitionDate: beforeScene?.datetime ? beforeScene.datetime.slice(0, 10) : undefined,
+      matchedScene: hasValidBefore ? beforeScene : null,
       tileUrl: getGibsTileUrl(cleanBefore),
+      hasValidObservation: hasValidBefore,
+      deltaDays: deltaDaysBefore,
+      unavailabilityReason: unavailReasonBefore,
+      temporalWarning: deltaDaysBefore && deltaDaysBefore > 14 ? `Actual pass is ${deltaDaysBefore}d from target date` : undefined,
     },
     after: {
       targetDate: cleanAfter,
-      matchedScene: afterScene,
+      actualAcquisitionDate: afterScene?.datetime ? afterScene.datetime.slice(0, 10) : undefined,
+      matchedScene: hasValidAfter ? afterScene : null,
       tileUrl: getGibsTileUrl(cleanAfter),
+      hasValidObservation: hasValidAfter,
+      deltaDays: deltaDaysAfter,
+      unavailabilityReason: unavailReasonAfter,
+      temporalWarning: deltaDaysAfter && deltaDaysAfter > 14 ? `Actual pass is ${deltaDaysAfter}d from target date` : undefined,
     },
+    temporalGapDays,
+    temporalAnomalyWarning,
+    spatialAlignmentStatus: hasValidBefore && hasValidAfter ? 'ALIGNED' : 'UNAVAILABLE',
   };
 }

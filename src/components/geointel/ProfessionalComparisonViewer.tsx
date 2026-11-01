@@ -463,12 +463,20 @@ export default function ProfessionalComparisonViewer({
           >
             {/* AFTER Layer (Base Viewport) */}
             <div className="absolute inset-0 w-full h-full overflow-hidden">
-              <img
-                src={afterImageUrl}
-                alt="Contemporary Satellite Observation"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {afterImageUrl ? (
+                <img
+                  src={afterImageUrl}
+                  alt="Contemporary Satellite Observation"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-black/90 text-slate-400">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 mb-2" />
+                  <span className="text-xs font-semibold text-slate-200">No suitable satellite observation found for AFTER date and AOI.</span>
+                  <span className="text-[10px] text-slate-500 mt-1">Select an alternative date or expand cloud tolerance.</span>
+                </div>
+              )}
             </div>
 
             {/* BEFORE Layer (Clipped Overlay via synchronized clip-path) */}
@@ -476,12 +484,20 @@ export default function ProfessionalComparisonViewer({
               className="absolute inset-0 w-full h-full overflow-hidden"
               style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}
             >
-              <img
-                src={beforeImageUrl}
-                alt="Historical Satellite Observation"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {beforeImageUrl ? (
+                <img
+                  src={beforeImageUrl}
+                  alt="Historical Satellite Observation"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center bg-black/90 text-slate-400">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 mb-2" />
+                  <span className="text-xs font-semibold text-slate-200">No suitable satellite observation found for BEFORE date and AOI.</span>
+                  <span className="text-[10px] text-slate-500 mt-1">Select an alternative date or expand cloud tolerance.</span>
+                </div>
+              )}
             </div>
 
             {/* Draggable Vertical Divider Line */}
@@ -522,12 +538,19 @@ export default function ProfessionalComparisonViewer({
               <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-black/85 text-cyan-300 font-mono text-[8.5px] font-bold border border-cyan-500/40">
                 HISTORICAL: {beforeScene?.datetime ? beforeScene.datetime.slice(0, 10) : 'Before'} ({beforeSpec.nativeGsdMeters}m)
               </div>
-              <img
-                src={beforeImageUrl}
-                alt="Before Scene"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {beforeImageUrl ? (
+                <img
+                  src={beforeImageUrl}
+                  alt="Before Scene"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center text-slate-400">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 mb-1" />
+                  <span className="text-[10px] text-slate-300">No suitable observation found</span>
+                </div>
+              )}
             </div>
 
             {/* Viewport 2: AFTER (Locked in 1:1 Synchronized Transform) */}
@@ -535,12 +558,19 @@ export default function ProfessionalComparisonViewer({
               <div className="absolute top-2 right-2 z-10 px-2 py-0.5 rounded bg-black/85 text-[#00E5FF] font-mono text-[8.5px] font-bold border border-[#00E5FF]/40">
                 CONTEMPORARY: {afterScene?.datetime ? afterScene.datetime.slice(0, 10) : 'After'} ({afterSpec.nativeGsdMeters}m)
               </div>
-              <img
-                src={afterImageUrl}
-                alt="After Scene"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {afterImageUrl ? (
+                <img
+                  src={afterImageUrl}
+                  alt="After Scene"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center text-slate-400">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 mb-1" />
+                  <span className="text-[10px] text-slate-300">No suitable observation found</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -550,12 +580,18 @@ export default function ProfessionalComparisonViewer({
           <div className="absolute inset-0 w-full h-full overflow-hidden">
             {/* Base Layer: BEFORE */}
             <div className="absolute inset-0 w-full h-full overflow-hidden">
-              <img
-                src={beforeImageUrl}
-                alt="Historical Baseline"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {beforeImageUrl ? (
+                <img
+                  src={beforeImageUrl}
+                  alt="Historical Baseline"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
+                  No Before Observation
+                </div>
+              )}
             </div>
 
             {/* Overlay Layer: AFTER with Dynamic Opacity & Difference Blend */}
@@ -566,12 +602,18 @@ export default function ProfessionalComparisonViewer({
                 mixBlendMode: diffBlend ? 'difference' : 'normal',
               }}
             >
-              <img
-                src={afterImageUrl}
-                alt="Contemporary Layer"
-                style={transformStyle}
-                className="w-full h-full object-contain pointer-events-none"
-              />
+              {afterImageUrl ? (
+                <img
+                  src={afterImageUrl}
+                  alt="Contemporary Layer"
+                  style={transformStyle}
+                  className="w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">
+                  No After Observation
+                </div>
+              )}
             </div>
 
             {/* Overlay Controls Bar */}

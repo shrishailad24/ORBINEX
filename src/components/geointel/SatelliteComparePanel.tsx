@@ -218,12 +218,10 @@ export default function SatelliteComparePanel({
 
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
     if (!scene) return '';
-    const [minLng, minLat, maxLng, maxLat] = currentBbox || [0, 0, 0, 0];
-    const highResExportUrl = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&size=640,640&f=image`;
+    const rawUrl = scene.visualUrl || scene.thumbnailUrl;
+    if (!rawUrl || rawUrl.includes('{z}')) return '';
 
-    const rawUrl = scene.thumbnailUrl || highResExportUrl;
-    const isExportFallback = !scene.thumbnailUrl;
-    const effectiveSceneBbox = (isExportFallback || !scene.bbox) ? currentBbox : scene.bbox;
+    const effectiveSceneBbox = scene.bbox || currentBbox;
 
     if (cropped && rawUrl && effectiveSceneBbox && currentBbox) {
       const params = new URLSearchParams({
@@ -233,6 +231,8 @@ export default function SatelliteComparePanel({
         width: '640',
         sceneBbox: effectiveSceneBbox.join(','),
         aoiBbox: currentBbox.join(','),
+        sceneId: scene.id || '',
+        datetime: scene.datetime || '',
       });
       return `/api/satellite/process?${params.toString()}`;
     }
@@ -1772,7 +1772,7 @@ export default function SatelliteComparePanel({
 
               <div className="grid grid-cols-2 gap-2.5">
                 {/* Before Card */}
-                <div className={`bg-black/50 rounded-lg p-2 space-y-2 border transition-all ${
+                <div className={`bg-black/50 rounded-lg p-2.5 space-y-2 border transition-all ${
                   projectedSceneId === comparison.before.matchedScene?.id
                     ? 'border-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.25)]'
                     : 'border-cyan-500/30'
@@ -1780,8 +1780,8 @@ export default function SatelliteComparePanel({
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <span className="text-[8.5px] font-bold text-cyan-400 uppercase">
-                          BEFORE {comparison.before.matchedScene?.datetime ? formatAcquisitionDate(comparison.before.matchedScene.datetime) : beforeDate}
+                        <span className="text-[9px] font-bold text-cyan-400 uppercase">
+                          BEFORE: {comparison.before.matchedScene?.datetime ? formatAcquisitionDate(comparison.before.matchedScene.datetime) : 'NO OBSERVATION'}
                         </span>
                       </div>
                       {comparison.before.matchedScene?.cloudCover != null && (
@@ -1790,45 +1790,41 @@ export default function SatelliteComparePanel({
                         </span>
                       )}
                     </div>
-                    {comparison.before.matchedScene?.datetime && (
-                      <div className="flex items-center justify-between text-[7.5px] text-slate-400">
-                        <span>Target: {beforeDate}</span>
+                    <div className="flex items-center justify-between text-[7.5px] text-slate-400">
+                      <span>Requested: {beforeDate}</span>
+                      {comparison.before.matchedScene?.datetime ? (
                         <span className="text-cyan-400/90 font-mono">
                           {getDeltaDays(comparison.before.matchedScene.datetime, beforeDate)}
                         </span>
-                      </div>
-                    )}
+                      ) : (
+                        <span className="text-amber-400 font-mono">UNAVAILABLE</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
-                    {comparison.before.matchedScene?.thumbnailUrl ? (
+                    {comparison.before.hasValidObservation !== false && comparison.before.matchedScene?.thumbnailUrl ? (
                       <img
                         src={getSceneImageUrl(comparison.before.matchedScene, true)}
                         alt="Before Satellite Scene"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.currentTarget;
-                          const directUrl = comparison.before.matchedScene?.thumbnailUrl
-                            ? `/api/satellite/asset?url=${encodeURIComponent(comparison.before.matchedScene.thumbnailUrl)}`
-                            : '';
-                          if (directUrl && target.src !== directUrl && !target.dataset.retried) {
-                            target.dataset.retried = 'true';
-                            target.src = directUrl;
-                            return;
-                          }
                           target.style.display = 'none';
                           const parent = target.parentElement;
                           if (parent) {
                             const fallback = document.createElement('div');
                             fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'Observation pending. Click "Process".';
+                            fallback.innerText = 'No suitable satellite observation found for this date and AOI.';
                             parent.appendChild(fallback);
                           }
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500 p-2 text-center">
-                        No observation within 45d of target date
+                      <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-black/90 text-slate-400">
+                        <AlertCircle className="w-4 h-4 text-amber-400 mb-1" />
+                        <span className="text-[9.5px] font-semibold text-slate-200">No suitable satellite observation found for this date and AOI.</span>
+                        <span className="text-[7.5px] text-slate-500 mt-0.5">Target: {beforeDate}</span>
                       </div>
                     )}
                     {projectedSceneId === comparison.before.matchedScene?.id && (
@@ -1839,31 +1835,37 @@ export default function SatelliteComparePanel({
                   </div>
 
                   {comparison.before.matchedScene && (
-                    <div className="grid grid-cols-2 gap-1 pt-0.5">
-                      <button
-                        onClick={() => handleProjectScene(comparison.before.matchedScene!, false)}
-                        className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
-                          projectedSceneId === comparison.before.matchedScene.id
-                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
-                            : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
-                        }`}
-                      >
-                        Project Map
-                      </button>
-                      <button
-                        onClick={() => handleProjectScene(comparison.before.matchedScene!, true)}
-                        disabled={processing}
-                        className="py-1 text-[8px] font-bold uppercase rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
-                      >
-                        <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
-                        <span>Process</span>
-                      </button>
+                    <div className="space-y-1">
+                      <div className="text-[7.5px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-1">
+                        <span>{comparison.before.matchedScene.platform}</span>
+                        <span>{comparison.before.matchedScene.metadata?.resolutionMeters || 10}m GSD</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 pt-0.5">
+                        <button
+                          onClick={() => handleProjectScene(comparison.before.matchedScene!, false)}
+                          className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
+                            projectedSceneId === comparison.before.matchedScene.id
+                              ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
+                              : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                          }`}
+                        >
+                          Project Map
+                        </button>
+                        <button
+                          onClick={() => handleProjectScene(comparison.before.matchedScene!, true)}
+                          disabled={processing}
+                          className="py-1 text-[8px] font-bold uppercase rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                          <span>Process</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {/* After Card */}
-                <div className={`bg-black/50 rounded-lg p-2 space-y-2 border transition-all ${
+                <div className={`bg-black/50 rounded-lg p-2.5 space-y-2 border transition-all ${
                   projectedSceneId === comparison.after.matchedScene?.id
                     ? 'border-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.25)]'
                     : 'border-[#00E5FF]/40'
@@ -1871,8 +1873,8 @@ export default function SatelliteComparePanel({
                   <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
-                        <span className="text-[8.5px] font-bold text-[#00E5FF] uppercase">
-                          AFTER {comparison.after.matchedScene?.datetime ? formatAcquisitionDate(comparison.after.matchedScene.datetime) : afterDate}
+                        <span className="text-[9px] font-bold text-[#00E5FF] uppercase">
+                          AFTER: {comparison.after.matchedScene?.datetime ? formatAcquisitionDate(comparison.after.matchedScene.datetime) : 'NO OBSERVATION'}
                         </span>
                       </div>
                       {comparison.after.matchedScene?.cloudCover != null && (
@@ -1881,45 +1883,41 @@ export default function SatelliteComparePanel({
                         </span>
                       )}
                     </div>
-                    {comparison.after.matchedScene?.datetime && (
-                      <div className="flex items-center justify-between text-[7.5px] text-slate-400">
-                        <span>Target: {afterDate}</span>
+                    <div className="flex items-center justify-between text-[7.5px] text-slate-400">
+                      <span>Requested: {afterDate}</span>
+                      {comparison.after.matchedScene?.datetime ? (
                         <span className="text-[#00E5FF]/90 font-mono">
                           {getDeltaDays(comparison.after.matchedScene.datetime, afterDate)}
                         </span>
-                      </div>
-                    )}
+                      ) : (
+                        <span className="text-amber-400 font-mono">UNAVAILABLE</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="aspect-video bg-black/60 rounded border border-white/10 overflow-hidden relative">
-                    {comparison.after.matchedScene?.thumbnailUrl ? (
+                    {comparison.after.hasValidObservation !== false && comparison.after.matchedScene?.thumbnailUrl ? (
                       <img
                         src={getSceneImageUrl(comparison.after.matchedScene, true)}
                         alt="After Satellite Scene"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.currentTarget;
-                          const directUrl = comparison.after.matchedScene?.thumbnailUrl
-                            ? `/api/satellite/asset?url=${encodeURIComponent(comparison.after.matchedScene.thumbnailUrl)}`
-                            : '';
-                          if (directUrl && target.src !== directUrl && !target.dataset.retried) {
-                            target.dataset.retried = 'true';
-                            target.src = directUrl;
-                            return;
-                          }
                           target.style.display = 'none';
                           const parent = target.parentElement;
                           if (parent) {
                             const fallback = document.createElement('div');
                             fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'Observation pending. Click "Process".';
+                            fallback.innerText = 'No suitable satellite observation found for this date and AOI.';
                             parent.appendChild(fallback);
                           }
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[9px] text-slate-500 p-2 text-center">
-                        No observation within 45d of target date
+                      <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center bg-black/90 text-slate-400">
+                        <AlertCircle className="w-4 h-4 text-amber-400 mb-1" />
+                        <span className="text-[9.5px] font-semibold text-slate-200">No suitable satellite observation found for this date and AOI.</span>
+                        <span className="text-[7.5px] text-slate-500 mt-0.5">Target: {afterDate}</span>
                       </div>
                     )}
                     {projectedSceneId === comparison.after.matchedScene?.id && (
@@ -1930,25 +1928,31 @@ export default function SatelliteComparePanel({
                   </div>
 
                   {comparison.after.matchedScene && (
-                    <div className="grid grid-cols-2 gap-1 pt-0.5">
-                      <button
-                        onClick={() => handleProjectScene(comparison.after.matchedScene!, false)}
-                        className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
-                          projectedSceneId === comparison.after.matchedScene.id
-                            ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
-                            : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
-                        }`}
-                      >
-                        Project Map
-                      </button>
-                      <button
-                        onClick={() => handleProjectScene(comparison.after.matchedScene!, true)}
-                        disabled={processing}
-                        className="py-1 text-[8px] font-bold uppercase rounded bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/30 text-[#00E5FF] flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
-                      >
-                        <Sparkles className="w-2.5 h-2.5 text-[#00E5FF]" />
-                        <span>Process</span>
-                      </button>
+                    <div className="space-y-1">
+                      <div className="text-[7.5px] text-slate-400 flex items-center justify-between border-t border-white/5 pt-1">
+                        <span>{comparison.after.matchedScene.platform}</span>
+                        <span>{comparison.after.matchedScene.metadata?.resolutionMeters || 10}m GSD</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1 pt-0.5">
+                        <button
+                          onClick={() => handleProjectScene(comparison.after.matchedScene!, false)}
+                          className={`py-1 text-[8px] font-bold uppercase rounded border transition-all ${
+                            projectedSceneId === comparison.after.matchedScene.id
+                              ? 'bg-[#00E5FF]/20 border-[#00E5FF] text-[#00E5FF]'
+                              : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300'
+                          }`}
+                        >
+                          Project Map
+                        </button>
+                        <button
+                          onClick={() => handleProjectScene(comparison.after.matchedScene!, true)}
+                          disabled={processing}
+                          className="py-1 text-[8px] font-bold uppercase rounded bg-[#00E5FF]/15 hover:bg-[#00E5FF]/25 border border-[#00E5FF]/30 text-[#00E5FF] flex items-center justify-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          <Sparkles className="w-2.5 h-2.5 text-[#00E5FF]" />
+                          <span>Process</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
