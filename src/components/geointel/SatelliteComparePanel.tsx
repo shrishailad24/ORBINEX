@@ -218,7 +218,9 @@ export default function SatelliteComparePanel({
 
   const getSceneImageUrl = useCallback((scene: SatelliteScene | null, cropped: boolean = true) => {
     if (!scene) return '';
-    const rawUrl = scene.visualUrl || scene.thumbnailUrl;
+    // Prefer fast, lightweight CDN thumbnail preview (84KB) for interactive rendering,
+    // avoiding synchronous timeouts on massive 340MB full-scene GeoTIFFs (visualUrl).
+    const rawUrl = scene.thumbnailUrl || scene.visualUrl;
     if (!rawUrl || rawUrl.includes('{z}')) return '';
 
     const effectiveSceneBbox = scene.bbox || currentBbox;
@@ -731,6 +733,7 @@ export default function SatelliteComparePanel({
   };
 
   const handleSelectCustomLocation = (name: string, focus: string, lat: number, lng: number, zoom = 12) => {
+    onClearDrawnAOI?.();
     setSelectedPresetId(null);
     setActiveLocation({
       id: undefined,
@@ -748,6 +751,7 @@ export default function SatelliteComparePanel({
   };
 
   const handleSelectPreset = (preset: StrategicLocationPreset) => {
+    onClearDrawnAOI?.();
     setSelectedPresetId(preset.id);
     setActiveLocation({
       id: preset.id,
@@ -878,6 +882,17 @@ export default function SatelliteComparePanel({
     if (isNaN(t1) || isNaN(t2)) return null;
     const diff = Math.round((t1 - t2) / 86400000);
     return diff === 0 ? 'Exact Target' : (diff > 0 ? `+${diff}d nearest` : `${diff}d nearest`);
+  };
+
+  const getDeltaDaysInfo = (actualStr?: string, targetStr?: string) => {
+    if (!actualStr || !targetStr) return { text: null, isOutOfTolerance: false, diff: 0 };
+    const t1 = new Date(actualStr.split('T')[0]).getTime();
+    const t2 = new Date(targetStr.split('T')[0]).getTime();
+    if (isNaN(t1) || isNaN(t2)) return { text: null, isOutOfTolerance: false, diff: 0 };
+    const diff = Math.round((t1 - t2) / 86400000);
+    const absDiff = Math.abs(diff);
+    const text = diff === 0 ? 'Exact Target' : (diff > 0 ? `+${diff}d nearest` : `${diff}d nearest`);
+    return { text, isOutOfTolerance: absDiff > 30, diff: absDiff };
   };
 
   if (!isOpen) return null;
@@ -1793,9 +1808,21 @@ export default function SatelliteComparePanel({
                     <div className="flex items-center justify-between text-[7.5px] text-slate-400">
                       <span>Requested: {beforeDate}</span>
                       {comparison.before.matchedScene?.datetime ? (
-                        <span className="text-cyan-400/90 font-mono">
-                          {getDeltaDays(comparison.before.matchedScene.datetime, beforeDate)}
-                        </span>
+                        (() => {
+                          const deltaInfo = getDeltaDaysInfo(comparison.before.matchedScene.datetime, beforeDate);
+                          return (
+                            <span
+                              className={`font-mono px-1 py-0.2 rounded transition-all ${
+                                deltaInfo.isOutOfTolerance
+                                  ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30'
+                                  : 'text-cyan-400/90'
+                              }`}
+                              title={deltaInfo.isOutOfTolerance ? 'Observation exceeds ±30-day temporal tolerance. Genuine cloud-free alternative pass.' : undefined}
+                            >
+                              {deltaInfo.isOutOfTolerance ? `⚠️ ${deltaInfo.text}` : deltaInfo.text}
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-amber-400 font-mono">UNAVAILABLE</span>
                       )}
@@ -1812,10 +1839,18 @@ export default function SatelliteComparePanel({
                           const target = e.currentTarget;
                           target.style.display = 'none';
                           const parent = target.parentElement;
-                          if (parent) {
+                          if (parent && !parent.querySelector('.retry-indicator')) {
                             const fallback = document.createElement('div');
-                            fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'No suitable satellite observation found for this date and AOI.';
+                            fallback.className = 'retry-indicator w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-slate-300 bg-black/80 gap-1';
+                            fallback.innerHTML = '<span class="text-amber-300">Observation processing pending</span><button class="px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-[7.5px] text-cyan-200 hover:bg-cyan-500/30">Reload</button>';
+                            const btn = fallback.querySelector('button');
+                            if (btn) {
+                              btn.onclick = () => {
+                                target.style.display = 'block';
+                                target.src = target.src.split('&_r=')[0] + '&_r=' + Date.now();
+                                fallback.remove();
+                              };
+                            }
                             parent.appendChild(fallback);
                           }
                         }}
@@ -1886,9 +1921,21 @@ export default function SatelliteComparePanel({
                     <div className="flex items-center justify-between text-[7.5px] text-slate-400">
                       <span>Requested: {afterDate}</span>
                       {comparison.after.matchedScene?.datetime ? (
-                        <span className="text-[#00E5FF]/90 font-mono">
-                          {getDeltaDays(comparison.after.matchedScene.datetime, afterDate)}
-                        </span>
+                        (() => {
+                          const deltaInfo = getDeltaDaysInfo(comparison.after.matchedScene.datetime, afterDate);
+                          return (
+                            <span
+                              className={`font-mono px-1 py-0.2 rounded transition-all ${
+                                deltaInfo.isOutOfTolerance
+                                  ? 'text-amber-300 bg-amber-500/15 border border-amber-500/30'
+                                  : 'text-[#00E5FF]/90'
+                              }`}
+                              title={deltaInfo.isOutOfTolerance ? 'Observation exceeds ±30-day temporal tolerance. Genuine cloud-free alternative pass.' : undefined}
+                            >
+                              {deltaInfo.isOutOfTolerance ? `⚠️ ${deltaInfo.text}` : deltaInfo.text}
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-amber-400 font-mono">UNAVAILABLE</span>
                       )}
@@ -1905,10 +1952,18 @@ export default function SatelliteComparePanel({
                           const target = e.currentTarget;
                           target.style.display = 'none';
                           const parent = target.parentElement;
-                          if (parent) {
+                          if (parent && !parent.querySelector('.retry-indicator')) {
                             const fallback = document.createElement('div');
-                            fallback.className = 'w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-amber-300/80 bg-black/80';
-                            fallback.innerText = 'No suitable satellite observation found for this date and AOI.';
+                            fallback.className = 'retry-indicator w-full h-full flex flex-col items-center justify-center p-2 text-center text-[8.5px] text-slate-300 bg-black/80 gap-1';
+                            fallback.innerHTML = '<span class="text-amber-300">Observation processing pending</span><button class="px-2 py-0.5 rounded bg-cyan-500/20 border border-cyan-500/40 text-[7.5px] text-cyan-200 hover:bg-cyan-500/30">Reload</button>';
+                            const btn = fallback.querySelector('button');
+                            if (btn) {
+                              btn.onclick = () => {
+                                target.style.display = 'block';
+                                target.src = target.src.split('&_r=')[0] + '&_r=' + Date.now();
+                                fallback.remove();
+                              };
+                            }
                             parent.appendChild(fallback);
                           }
                         }}

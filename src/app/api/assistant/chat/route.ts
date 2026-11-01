@@ -69,11 +69,12 @@ export async function POST(req: NextRequest) {
     let satelliteAction: any = null;
 
     if (isExplicitActionRequest) {
-      // 1. Resolve Location from current message
+      // 1. Resolve Location from current message (prefer most specific / longest match first)
       let targetLoc: { lat: number; lng: number; name: string; zoom: number } | null = null;
-      for (const [key, val] of Object.entries(KNOWN_LOCATIONS)) {
+      const sortedLocationKeys = Object.keys(KNOWN_LOCATIONS).sort((a, b) => b.length - a.length);
+      for (const key of sortedLocationKeys) {
         if (textLower.includes(key)) {
-          targetLoc = val;
+          targetLoc = KNOWN_LOCATIONS[key];
           break;
         }
       }
@@ -81,9 +82,9 @@ export async function POST(req: NextRequest) {
       // 2. If not found in message, inherit location from recent history (e.g. user answered "yeah give me")
       if (!targetLoc && Array.isArray(history) && history.length > 0) {
         const historyText = history.slice(-4).map((h) => h.content || '').join(' ').toLowerCase();
-        for (const [key, val] of Object.entries(KNOWN_LOCATIONS)) {
+        for (const key of sortedLocationKeys) {
           if (historyText.includes(key)) {
-            targetLoc = val;
+            targetLoc = KNOWN_LOCATIONS[key];
             break;
           }
         }
@@ -206,7 +207,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Detect Autonomous Platform Copilot Action (CCTV cameras, layers, navigation, tools)
-    const copilotAction = parseCopilotAction(message);
+    let copilotAction = parseCopilotAction(message);
+    if (!copilotAction && /(camera|cctv|cc camera|surveillance|live cam|traffic cam|webcam|video feed)/i.test(textLower)) {
+      copilotAction = parseCopilotAction(`${message} open camera`);
+    }
 
     // 2. Build Grounded RAG Context
     const { contextBlock, sources } = await buildGroundedContext(message, context as AssistantContext);
@@ -307,11 +311,15 @@ The interactive Before/After imagery cards and the "Download 8-Page PDF Dossier"
     }
 
     const isRefusal =
-      /i (can't|cannot|do not have the ability to|am unable to) (open|access|stream|provide direct links to) (live )?(cctv|camera|feed|stream)/i.test(answer) ||
+      /i (can't|cannot|do not have the ability to|am unable to) (open|access|stream|provide direct links to) (live )?(cctv|camera|feed|stream|private)/i.test(answer) ||
       /as an ai.*(cannot|can't) (open|view|access|stream)/i.test(answer) ||
-      /i can't open live/i.test(answer);
+      /i can't open live/i.test(answer) ||
+      (/private cameras/i.test(answer) && /cannot|can't/i.test(answer));
 
-    if (!answer || answer.trim().length === 0 || (copilotAction && isRefusal)) {
+    if (!answer || answer.trim().length === 0 || isRefusal) {
+      if (!copilotAction && /(camera|cctv|feed|stream|cam)/i.test(textLower)) {
+        copilotAction = parseCopilotAction(`${message} open camera`);
+      }
       // Intelligent grounded local fallback whenever external API quota or refusal is detected
       if (copilotAction?.type === 'open_camera') {
         const cam = copilotAction.camera!;

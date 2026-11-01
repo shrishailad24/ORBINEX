@@ -148,6 +148,14 @@ def crop_to_aoi(img, scene_bbox, aoi_bbox, target_size=640):
     dw = dx2 - dx1
     dh = dy2 - dy1
 
+    # If placing the patch would shrink the observation to less than 65% of the viewport width/height,
+    # resample the valid intersecting terrain directly to fill the full canvas so users observe clear imagery.
+    if dw < out_w * 0.65 or dh < out_h * 0.65:
+        canvas = src_patch.resize((out_w, out_h), Image.Resampling.LANCZOS)
+        if canvas.mode != "RGBA":
+            canvas = canvas.convert("RGBA")
+        return canvas
+
     if dw > 0 and dh > 0:
         resampled_patch = src_patch.resize((dw, dh), Image.Resampling.LANCZOS)
         if resampled_patch.mode != "RGBA":

@@ -57,6 +57,7 @@ export interface HistoricalObservationSlot {
   tileUrl?: string;
   hasValidObservation?: boolean;
   deltaDays?: number;
+  isOutOfTolerance?: boolean;
   unavailabilityReason?: string;
   temporalWarning?: string;
   actualAcquisitionDate?: string;

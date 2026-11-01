@@ -7,6 +7,8 @@ import { type HistoricalComparisonPair, type SatellitePlatform, type SatelliteSc
 import { bboxToQuadCoordinates, searchSatelliteScenes } from './stac-client';
 import { satelliteRegistry, type NormalizedSatelliteObservation } from './providers';
 
+export const STANDARD_TEMPORAL_TOLERANCE_DAYS = 30;
+
 export interface StrategicLocationPreset {
   id: string;
   name: string;
@@ -487,8 +489,13 @@ export async function buildHistoricalComparison(
       tileUrl: getGibsTileUrl(cleanBefore),
       hasValidObservation: hasValidBefore,
       deltaDays: deltaDaysBefore,
+      isOutOfTolerance: deltaDaysBefore != null && deltaDaysBefore > STANDARD_TEMPORAL_TOLERANCE_DAYS,
       unavailabilityReason: unavailReasonBefore,
-      temporalWarning: deltaDaysBefore && deltaDaysBefore > 14 ? `Actual pass is ${deltaDaysBefore}d from target date` : undefined,
+      temporalWarning: deltaDaysBefore && deltaDaysBefore > STANDARD_TEMPORAL_TOLERANCE_DAYS
+        ? `Actual observation is ${deltaDaysBefore}d from target date (exceeds ±${STANDARD_TEMPORAL_TOLERANCE_DAYS}-day standard tolerance). Nearest cloud-free pass.`
+        : deltaDaysBefore && deltaDaysBefore > 14
+          ? `Actual pass is ${deltaDaysBefore}d from target date`
+          : undefined,
     },
     after: {
       targetDate: cleanAfter,
@@ -497,8 +504,13 @@ export async function buildHistoricalComparison(
       tileUrl: getGibsTileUrl(cleanAfter),
       hasValidObservation: hasValidAfter,
       deltaDays: deltaDaysAfter,
+      isOutOfTolerance: deltaDaysAfter != null && deltaDaysAfter > STANDARD_TEMPORAL_TOLERANCE_DAYS,
       unavailabilityReason: unavailReasonAfter,
-      temporalWarning: deltaDaysAfter && deltaDaysAfter > 14 ? `Actual pass is ${deltaDaysAfter}d from target date` : undefined,
+      temporalWarning: deltaDaysAfter && deltaDaysAfter > STANDARD_TEMPORAL_TOLERANCE_DAYS
+        ? `Actual observation is ${deltaDaysAfter}d from target date (exceeds ±${STANDARD_TEMPORAL_TOLERANCE_DAYS}-day standard tolerance). Nearest cloud-free pass.`
+        : deltaDaysAfter && deltaDaysAfter > 14
+          ? `Actual pass is ${deltaDaysAfter}d from target date`
+          : undefined,
     },
     temporalGapDays,
     temporalAnomalyWarning,
