@@ -1,0 +1,25 @@
+# ORBINEX Prithvi-EO-2.0 Cloud Training Requirements
+# Compatible with PyTorch 2.2+ / CUDA 12.1+ on NVIDIA A10G (24GB), RTX 4090, or A100
+
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.2.2+cu121
+torchvision==0.17.2+cu121
+
+# Geospatial Foundation Model Frameworks
+terratorch>=0.1.0
+torchgeo>=0.5.0
+timm>=0.9.12
+transformers>=4.38.2
+safetensors>=0.4.2
+einops>=0.7.0
+
+# Scientific & Geospatial Tooling
+rasterio>=1.3.9
+pillow>=10.2.0
+pandas>=2.2.0
+numpy>=1.26.0,<2.0.0
+scikit-learn>=1.4.0
+scipy>=1.12.0
+pyyaml>=6.0.1
+tqdm>=4.66.2
+huggingface_hub>=0.21.4
