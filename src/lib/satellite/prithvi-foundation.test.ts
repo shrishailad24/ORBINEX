@@ -35,6 +35,7 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
       bandId,
       commonName: 'test',
       nativeResolutionMeters: 10,
+      sampledResolutionMeters: 10,
       width: size,
       height: size,
       data: new Float32Array(size * size).fill(val),
@@ -42,8 +43,12 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
       minReflectance: val,
       maxReflectance: val,
       meanReflectance: val,
+      stdDevReflectance: 0.0,
       validPixelCount: size * size,
       totalPixelCount: size * size,
+      aoiCoveragePct: 100,
+      nodataValue: 0,
+      reflectanceScaling: 'DN / 10000.0',
     });
 
     it('constructs standardized [T=2, C=6, H, W] bitemporal tensor from multi-band rasters', () => {
@@ -95,6 +100,7 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
         bandId,
         commonName: 'test',
         nativeResolutionMeters: 10,
+        sampledResolutionMeters: 10,
         width: size,
         height: size,
         data: new Float32Array(size * size).fill(val),
@@ -102,8 +108,12 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
         minReflectance: val,
         maxReflectance: val,
         meanReflectance: val,
+        stdDevReflectance: 0.0,
         validPixelCount: size * size,
         totalPixelCount: size * size,
+        aoiCoveragePct: 100,
+        nodataValue: 0,
+        reflectanceScaling: 'DN / 10000.0',
       });
 
       const beforeBands: Record<string, ExtractedBandRaster> = {
@@ -141,6 +151,7 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
         bandId,
         commonName: 'test',
         nativeResolutionMeters: 10,
+        sampledResolutionMeters: 10,
         width: size,
         height: size,
         data: new Float32Array(size * size).fill(val),
@@ -148,8 +159,12 @@ describe('ORBINEX AI-07 — IBM-NASA Prithvi-EO-2.0 Earth Foundation Model Adapt
         minReflectance: val,
         maxReflectance: val,
         meanReflectance: val,
+        stdDevReflectance: 0.0,
         validPixelCount: size * size,
         totalPixelCount: size * size,
+        aoiCoveragePct: 100,
+        nodataValue: 0,
+        reflectanceScaling: 'DN / 10000.0',
       });
 
       const beforeBands: Record<string, ExtractedBandRaster> = {

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractAnalyticalAoiWindow } from '@/lib/satellite/cog-reader';
+import {
+  inspectCogMetadata,
+  extractAnalyticalAoiWindow,
+  buildAnalyticalPair,
+  SENTINEL2_BAND_CATALOG,
+  type AnalyticalStatus,
+} from '@/lib/satellite/cog-reader';
 import { constructPrithviInputCube, runPrithviInference, type PrithviModelVariant } from '@/lib/satellite/prithvi-foundation';
 import { executeOscdTestSplitBenchmark } from '@/lib/satellite/benchmarks/oscd-benchmark';
 
@@ -9,185 +15,205 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      action = 'compare',
+      cogUrl,
       aoiBbox,
       aoiName = 'Custom AOI Analysis Zone',
       beforeScene,
       afterScene,
+      bands = ['B04', 'B08'],
       modelVariant = 'Prithvi-EO-2.0-300M',
       includeBenchmark = false,
+      requestedDates = { before: '2020-01-15', after: '2024-01-15' },
     } = body;
 
-    // 1. Validate AOI bounding box
+    // ─────────────────────────────────────────────────────────────
+    // ACTION 1: Inspect COG Metadata & HTTP Range Support
+    // ─────────────────────────────────────────────────────────────
+    if (action === 'inspect') {
+      if (!cogUrl || typeof cogUrl !== 'string') {
+        return NextResponse.json(
+          { status: 'FAILED', error: 'Missing required "cogUrl" parameter for inspection' },
+          { status: 400 }
+        );
+      }
+
+      try {
+        const metadata = await inspectCogMetadata(cogUrl);
+        return NextResponse.json({
+          status: 'SUCCESS' as AnalyticalStatus,
+          metadata,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (err: any) {
+        const isRangeNotSupported = err.message?.includes('RANGE_NOT_SUPPORTED');
+        return NextResponse.json(
+          {
+            status: (isRangeNotSupported ? 'RANGE_NOT_SUPPORTED' : 'FAILED') as AnalyticalStatus,
+            error: err.message,
+          },
+          { status: isRangeNotSupported ? 416 : 500 }
+        );
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Validate AOI Bounding Box for Window Extraction and Comparison
+    // ─────────────────────────────────────────────────────────────
     if (!aoiBbox || !Array.isArray(aoiBbox) || aoiBbox.length !== 4) {
       return NextResponse.json(
-        { error: 'Valid AOI bounding box [minLng, minLat, maxLng, maxLat] is required.' },
+        { status: 'FAILED', error: 'Valid AOI bounding box [minLng, minLat, maxLng, maxLat] is required.' },
         { status: 400 }
       );
     }
 
-    // 2. Validate scenes
+    // ─────────────────────────────────────────────────────────────
+    // ACTION 2: Extract AOI Window for Single Scene
+    // ─────────────────────────────────────────────────────────────
+    if (action === 'extract') {
+      const scene = body.scene || beforeScene || afterScene;
+      if (!scene) {
+        return NextResponse.json(
+          { status: 'INSUFFICIENT_DATA', error: 'Scene with assets is required for AOI window extraction.' },
+          { status: 400 }
+        );
+      }
+
+      const bandUrls = getBandUrls(scene);
+      const windowResult = await extractAnalyticalAoiWindow(
+        bandUrls,
+        aoiBbox as [number, number, number, number],
+        scene.id || 'SCENE',
+        scene.datetime || new Date().toISOString(),
+        bands
+      );
+
+      return NextResponse.json({
+        status: windowResult.status,
+        aoi: { name: aoiName, bbox: aoiBbox },
+        window: windowResult,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // ACTION 3: Compare Dual-Temporal Analytical Pair (Default)
+    // ─────────────────────────────────────────────────────────────
     if (!beforeScene || !afterScene) {
       return NextResponse.json(
         {
-          status: 'INSUFFICIENT_DATA',
+          status: 'INSUFFICIENT_DATA' as AnalyticalStatus,
           error: 'Both BEFORE and AFTER satellite scenes are required for analytical multi-temporal inference.',
         },
         { status: 400 }
       );
     }
 
-    // 3. Extract COG Band URLs from scenes
-    // Build real or fallback AWS Sentinel-2 COG asset endpoints for the scene IDs
-    const getBandUrls = (scene: any) => {
-      const sceneId = scene.id || scene.sceneId || 'S2B_MSIL2A';
-      const baseS3Url = scene.assetUrl
-        ? pathOrUrl(scene.assetUrl)
-        : `https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/6/J/WT/2026/11/${sceneId}`;
-
-      return {
-        B02: `${baseS3Url}/B02.tif`,
-        B03: `${baseS3Url}/B03.tif`,
-        B04: `${baseS3Url}/B04.tif`,
-        B08: `${baseS3Url}/B08.tif`,
-        B8A: `${baseS3Url}/B8A.tif`,
-        B11: `${baseS3Url}/B11.tif`,
-        B12: `${baseS3Url}/B12.tif`,
-      };
-    };
-
-    function pathOrUrl(url: string) {
-      return url.replace(/\/[^/]+\.jpg$/i, '').replace(/\/[^/]+\.tif$/i, '');
-    }
-
     const beforeBandUrls = getBandUrls(beforeScene);
     const afterBandUrls = getBandUrls(afterScene);
 
-    // 4. Extract Analytical COG Windows via HTTP Byte-Range Requests
-    let beforeWindow;
-    let afterWindow;
+    const pairResult = await buildAnalyticalPair(
+      { id: beforeScene.id || 'BEFORE', datetime: beforeScene.datetime || requestedDates.before, assets: beforeBandUrls },
+      { id: afterScene.id || 'AFTER', datetime: afterScene.datetime || requestedDates.after, assets: afterBandUrls },
+      aoiBbox as [number, number, number, number],
+      requestedDates,
+      ['B02', 'B03', 'B04', 'B08', 'B8A', 'B11', 'B12']
+    );
 
-    try {
-      beforeWindow = await extractAnalyticalAoiWindow(
-        beforeBandUrls,
-        aoiBbox as [number, number, number, number],
-        beforeScene.id || 'BEFORE_SCENE',
-        beforeScene.datetime || '2020-01-15',
-        ['B02', 'B03', 'B04', 'B08', 'B8A', 'B11', 'B12']
-      );
-
-      afterWindow = await extractAnalyticalAoiWindow(
-        afterBandUrls,
-        aoiBbox as [number, number, number, number],
-        afterScene.id || 'AFTER_SCENE',
-        afterScene.datetime || '2024-01-15',
-        ['B02', 'B03', 'B04', 'B08', 'B8A', 'B11', 'B12']
-      );
-    } catch (err: any) {
-      console.warn('[ANALYTICAL-API] COG extraction fallback to synthetic calibrated window:', err.message);
-      // Construct verified synthetic raster fixture for testing when S3 network is unreachable
-      beforeWindow = createSyntheticWindowFixture(aoiBbox as [number, number, number, number], beforeScene.id || 'SYNTH_BEFORE', 0.42);
-      afterWindow = createSyntheticWindowFixture(aoiBbox as [number, number, number, number], afterScene.id || 'SYNTH_AFTER', 0.28);
+    // If valid overlap is insufficient (<25%), return early without computing model inference
+    if (pairResult.status === 'INSUFFICIENT_DATA') {
+      return NextResponse.json(pairResult);
     }
 
-    // 5. Compute Differential Spectral Indices
-    const deltaNdvi = (afterWindow.metrics.meanNdvi ?? 0) - (beforeWindow.metrics.meanNdvi ?? 0);
-    const deltaNdwi = (afterWindow.metrics.meanNdwi ?? 0) - (beforeWindow.metrics.meanNdwi ?? 0);
-    const deltaNdii = (afterWindow.metrics.meanNdii ?? 0) - (beforeWindow.metrics.meanNdii ?? 0);
-
-    // 6. Execute Prithvi-EO-2.0 Foundation Model Adapter
+    // Execute Prithvi-EO-2.0 Foundation Model inference if bands are available
     let prithviResult = null;
     try {
       const beforeBandArrays = Object.fromEntries(
-        Object.entries(beforeWindow.bands).map(([k, v]) => [k, v.data])
+        Object.entries(pairResult.before.bands).map(([k, v]) => [k, v.data])
       );
       const afterBandArrays = Object.fromEntries(
-        Object.entries(afterWindow.bands).map(([k, v]) => [k, v.data])
+        Object.entries(pairResult.after.bands).map(([k, v]) => [k, v.data])
       );
 
-      const inputCube = constructPrithviInputCube(beforeBandArrays, afterBandArrays, 256, 256);
-      prithviResult = await runPrithviInference(inputCube, modelVariant as PrithviModelVariant);
+      if (Object.keys(beforeBandArrays).length >= 6 && Object.keys(afterBandArrays).length >= 6) {
+        const inputCube = constructPrithviInputCube(beforeBandArrays, afterBandArrays, 256, 256);
+        prithviResult = await runPrithviInference(inputCube, modelVariant as PrithviModelVariant);
+      }
     } catch (modelErr: any) {
       console.warn('[ANALYTICAL-API] Prithvi model execution notice:', modelErr.message);
     }
 
-    // 7. Optional Benchmark Verification Baseline
+    // Optional Benchmark Baseline
     let benchmarkBaseline = null;
     if (includeBenchmark) {
       benchmarkBaseline = executeOscdTestSplitBenchmark();
     }
 
     return NextResponse.json({
-      status: 'SUCCESS',
+      status: pairResult.status,
       aoi: {
         name: aoiName,
         bbox: aoiBbox,
       },
-      scenes: {
+      pair: pairResult,
+      spectralIndices: {
         before: {
-          id: beforeScene.id,
-          datetime: beforeScene.datetime,
-          platform: 'Copernicus Sentinel-2 L2A',
-          meanNdvi: Number((beforeWindow.metrics.meanNdvi ?? 0).toFixed(4)),
-          meanNdwi: Number((beforeWindow.metrics.meanNdwi ?? 0).toFixed(4)),
-          meanNdii: Number((beforeWindow.metrics.meanNdii ?? 0).toFixed(4)),
+          ndvi: pairResult.before.metrics.meanNdvi,
+          ndwi: pairResult.before.metrics.meanNdwi,
+          ndii: pairResult.before.metrics.meanNdii,
+          validCoveragePct: pairResult.before.metrics.validDataCoveragePct,
         },
         after: {
-          id: afterScene.id,
-          datetime: afterScene.datetime,
-          platform: 'Copernicus Sentinel-2 L2A',
-          meanNdvi: Number((afterWindow.metrics.meanNdvi ?? 0).toFixed(4)),
-          meanNdwi: Number((afterWindow.metrics.meanNdwi ?? 0).toFixed(4)),
-          meanNdii: Number((afterWindow.metrics.meanNdii ?? 0).toFixed(4)),
+          ndvi: pairResult.after.metrics.meanNdvi,
+          ndwi: pairResult.after.metrics.meanNdwi,
+          ndii: pairResult.after.metrics.meanNdii,
+          validCoveragePct: pairResult.after.metrics.validDataCoveragePct,
         },
+        deltas: {
+          deltaNdvi: pairResult.spectralDeltas.deltaNdviMean,
+          deltaNdwi: pairResult.spectralDeltas.deltaNdwiMean,
+          deltaNdii: pairResult.spectralDeltas.deltaNdiiMean,
+        },
+        summary: `Analytical spectral delta: ${
+          (pairResult.spectralDeltas.deltaNdviMean ?? 0) < -0.05
+            ? 'Vegetation loss / canopy stress'
+            : (pairResult.spectralDeltas.deltaNdviMean ?? 0) > 0.05
+              ? 'Vegetation increase / greening'
+              : 'Stable vegetation baseline'
+        } (${pairResult.spectralDeltas.significantChangeAreaPct}% significant change area).`,
       },
-      spectralDeltas: {
-        deltaNdvi: Number(deltaNdvi.toFixed(4)),
-        deltaNdwi: Number(deltaNdwi.toFixed(4)),
-        deltaNdii: Number(deltaNdii.toFixed(4)),
-        vegetationLossDetected: deltaNdvi < -0.05,
-        waterBodyChangeDetected: Math.abs(deltaNdwi) > 0.05,
-        moistureLossDetected: deltaNdii < -0.05,
-      },
-      foundationModel: prithviResult
+      prithviFoundationModel: prithviResult
         ? {
             modelVariant: prithviResult.modelVariant,
             modelVersion: prithviResult.modelVersion,
-            device: prithviResult.device,
-            changedAreaPct: prithviResult.metrics.changedAreaPct,
-            meanConfidence: prithviResult.metrics.meanChangeConfidence,
+            changeProbability: prithviResult.metrics.meanChangeConfidence,
+            confidence: 1.0 - prithviResult.metrics.changedAreaPct / 100,
+            embeddingsDimension: prithviResult.embeddingDim,
             downstreamHead: prithviResult.downstreamHeadType,
             executionTimeMs: prithviResult.provenance.executionTimeMs,
             limitations: prithviResult.limitations,
           }
         : null,
-      benchmarkBaseline: benchmarkBaseline
+      benchmark: benchmarkBaseline
         ? {
-            benchmark: benchmarkBaseline.benchmarkName,
-            version: benchmarkBaseline.benchmarkVersion,
-            testScenesCount: benchmarkBaseline.testSceneCount,
-            meanF1Score: benchmarkBaseline.aggregateMetrics.f1Score,
-            meanIoU: benchmarkBaseline.aggregateMetrics.iou,
+            name: benchmarkBaseline.benchmarkName,
+            split: '14 Train / 10 Test (Scene-Isolated)',
+            iou: benchmarkBaseline.aggregateMetrics.iou,
+            f1: benchmarkBaseline.aggregateMetrics.f1Score,
             precision: benchmarkBaseline.aggregateMetrics.precision,
             recall: benchmarkBaseline.aggregateMetrics.recall,
+            falseAlarmRate: benchmarkBaseline.aggregateMetrics.falseAlarmRate,
+            overallAccuracy: benchmarkBaseline.aggregateMetrics.overallAccuracy,
             separationNotice: benchmarkBaseline.levirCdSeparationNotice,
           }
         : null,
-      provenance: {
-        reader: 'ORBINEX-Native-HTTP-ByteRange-COG-Reader-v2.0',
-        rangeRequestsExecuted:
-          beforeWindow.provenance.rangeRequestsExecuted + afterWindow.provenance.rangeRequestsExecuted,
-        totalBytesTransferred:
-          beforeWindow.provenance.totalBytesTransferred + afterWindow.provenance.totalBytesTransferred,
-        nativeGsd: '10m (B02,B03,B04,B08) / 20m (B8A,B11,B12)',
-        spatialCrs: 'EPSG:32643',
-      },
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
     console.error('[ANALYTICAL-API] Fatal analytical processing error:', err);
     return NextResponse.json(
       {
-        status: 'FAILED',
+        status: 'FAILED' as AnalyticalStatus,
         error: 'Analytical satellite processing failed',
         details: err.message,
       },
@@ -196,74 +222,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
-function createSyntheticWindowFixture(bbox: [number, number, number, number], sceneId: string, baselineNdvi: number) {
-  const size = 256;
-  const count = size * size;
-
-  const createBand = (meanVal: number) => {
-    const data = new Float32Array(count);
-    const validMask = new Uint8Array(count).fill(1);
-    for (let i = 0; i < count; i++) {
-      data[i] = Math.max(0.01, Math.min(0.99, meanVal + (Math.sin(i * 0.1) * 0.05)));
+function getBandUrls(scene: any): Record<string, string> {
+  const sceneId = scene.id || scene.sceneId || 'S2B_MSIL2A';
+  if (scene.assets && typeof scene.assets === 'object') {
+    const urls: Record<string, string> = {};
+    for (const [k, v] of Object.entries(scene.assets)) {
+      if (typeof v === 'string') urls[k] = v;
+      else if (v && typeof v === 'object' && 'href' in v) urls[k] = (v as any).href;
     }
-    return {
-      bandId: 'BAND',
-      commonName: 'band',
-      nativeResolutionMeters: 10,
-      width: size,
-      height: size,
-      data,
-      validMask,
-      minReflectance: meanVal - 0.05,
-      maxReflectance: meanVal + 0.05,
-      meanReflectance: meanVal,
-      validPixelCount: count,
-      totalPixelCount: count,
-    };
-  };
+    return urls;
+  }
 
-  const red = createBand(0.12);
-  const nir = createBand(0.12 * ((1 + baselineNdvi) / (1 - baselineNdvi)));
-  const green = createBand(0.09);
-  const swir1 = createBand(0.15);
-  const swir2 = createBand(0.11);
+  const baseS3Url = scene.assetUrl
+    ? scene.assetUrl.replace(/\/[^/]+\.jpg$/i, '').replace(/\/[^/]+\.tif$/i, '')
+    : `https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/6/J/WT/2026/11/${sceneId}`;
 
   return {
-    sceneId,
-    aoiBbox: bbox,
-    acquisitionDate: '2024-01-15',
-    crs: 'EPSG:32643',
-    affineTransform: [bbox[0], 0.0000898, 0, bbox[3], 0, -0.0000898] as [number, number, number, number, number, number],
-    pixelWidth: size,
-    pixelHeight: size,
-    resolutionMeters: 10.0,
-    bands: {
-      B02: createBand(0.08),
-      B03: green,
-      B04: red,
-      B08: nir,
-      B8A: createBand(nir.meanReflectance * 0.95),
-      B11: swir1,
-      B12: swir2,
-    },
-    indices: {
-      ndvi: new Float32Array(count).fill(baselineNdvi),
-      ndwi: new Float32Array(count).fill(-0.15),
-      ndii: new Float32Array(count).fill(0.08),
-    },
-    metrics: {
-      meanNdvi: baselineNdvi,
-      meanNdwi: -0.15,
-      meanNdii: 0.08,
-      validDataCoveragePct: 100,
-      cloudMaskedPct: 0,
-    },
-    provenance: {
-      stacEndpoint: 'https://earth-search.aws.element84.com/v1',
-      reader: 'ORBINEX-Native-HTTP-ByteRange-COG-Reader-v2.0' as const,
-      rangeRequestsExecuted: 14,
-      totalBytesTransferred: 485120,
-      cacheHit: false,
-    },
+    B02: `${baseS3Url}/B02.tif`,
+    B03: `${baseS3Url}/B03.tif`,
+    B04: `${baseS3Url}/B04.tif`,
+    B08: `${baseS3Url}/B08.tif`,
+    B8A: `${baseS3Url}/B8A.tif`,
+    B11: `${baseS3Url}/B11.tif`,
+    B12: `${baseS3Url}/B12.tif`,
   };
 }
