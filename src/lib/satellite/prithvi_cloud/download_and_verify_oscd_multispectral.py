@@ -35,6 +35,10 @@ TEST_LABELS_HF_MIRROR = "https://huggingface.co/datasets/blanchon/OSCD_MSI/resol
 
 REQUIRED_BANDS = ["B02.tif", "B03.tif", "B04.tif", "B8A.tif", "B11.tif", "B12.tif"]
 
+class SecurityError(RuntimeError):
+    """Raised when path traversal, symlink, or archive escaping is detected."""
+    pass
+
 def clean_url(raw_url: str) -> str:
     if not raw_url:
         return ""
@@ -43,22 +47,58 @@ def clean_url(raw_url: str) -> str:
         return match.group(1).strip()
     return raw_url.strip('`"\' \t\r\n')
 
-def is_safe_zip_member(base_dir: str, member: zipfile.ZipInfo) -> bool:
-    mode = member.external_attr >> 16
-    if mode & 0o170000 == 0o120000:
-        return False
-    norm_name = member.filename.replace('\\', '/')
-    if norm_name.startswith('/') or re.match(r'^[a-zA-Z]:', norm_name):
-        return False
-    parts = [p for p in norm_name.split('/') if p]
-    if any(p == '..' for p in parts):
-        return False
-    dest_path = (Path(base_dir) / norm_name).resolve()
-    base_path = Path(base_dir).resolve()
+def is_path_contained(target_path: Path, base_dir: Path) -> bool:
     try:
-        return dest_path.is_relative_to(base_path)
-    except AttributeError:
-        return str(dest_path).startswith(str(base_path))
+        target_resolved = target_path.resolve(strict=False)
+        base_resolved = base_dir.resolve(strict=True)
+        try:
+            return target_resolved.is_relative_to(base_resolved)
+        except AttributeError:
+            return os.path.commonpath([str(target_resolved), str(base_resolved)]) == str(base_resolved)
+    except (ValueError, OSError):
+        return False
+
+def safe_extract_zip_member(zf: zipfile.ZipFile, member: zipfile.ZipInfo, output_dir: str, written_destinations: set) -> Path:
+    # 1. Symlink check
+    mode = member.external_attr >> 16
+    if (mode & 0o170000) == 0o120000:
+        raise SecurityError(f"Symlink rejected in archive member: {member.filename}")
+
+    # 2. Strict path normalization and path traversal rejection
+    raw_name = member.filename.replace('\\', '/')
+    if raw_name.startswith('/') or re.match(r'^[a-zA-Z]:', raw_name):
+        raise SecurityError(f"Absolute or drive path rejected: {member.filename}")
+    parts = [p for p in raw_name.split('/') if p and p != '.']
+    if any(p == '..' for p in parts):
+        raise SecurityError(f"Directory traversal (..) rejected: {member.filename}")
+
+    norm_member = '/'.join(parts)
+    base_path = Path(output_dir).resolve(strict=False)
+    dest_path = (base_path / norm_member).resolve(strict=False)
+
+    # 3. Component-boundary containment check
+    if not is_path_contained(dest_path, base_path):
+        raise SecurityError(f"Path containment violation: {dest_path} is outside {base_path}")
+
+    # 4. Reject duplicate archive destination
+    dest_str = str(dest_path)
+    if dest_str in written_destinations:
+        raise SecurityError(f"Duplicate archive extraction destination rejected: {dest_str}")
+
+    # 5. Check symlinked parent directories
+    curr = dest_path.parent
+    while curr != base_path and curr != curr.parent:
+        if curr.is_symlink():
+            raise SecurityError(f"Symlinked parent directory detected: {curr}")
+        curr = curr.parent
+
+    # 6. Safe write using normalized destination path
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with zf.open(member) as src, open(dest_path, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+
+    written_destinations.add(dest_str)
+    return dest_path
 
 def compute_md5(filepath: str) -> str:
     h = hashlib.md5()
@@ -148,9 +188,11 @@ def extract_selective_bands(
     print(f"[EXTRACTION] Starting selective extraction of bands & dates for {len(scene_names)} scenes...")
 
     extracted_records = {}
+    written_destinations = set()
 
     with zipfile.ZipFile(zip_path, "r") as zf:
         namelist = zf.namelist()
+        zinfo_map = {z.filename: z for z in zf.infolist()}
         total_files = len(namelist)
         print(f"[ARCHIVE INFO] Total members in archive: {total_files}")
 
@@ -171,9 +213,6 @@ def extract_selective_bands(
                 ])
 
             for member in namelist:
-                zinfo = zf.getinfo(member)
-                if not is_safe_zip_member(output_dir, zinfo):
-                    raise RuntimeError(f"Zip-Slip or unsafe entry detected in member: {member}")
                 norm_member = member.replace('\\', '/')
                 basename = os.path.basename(norm_member)
                 is_band = basename in REQUIRED_BANDS
@@ -182,11 +221,9 @@ def extract_selective_bands(
                     continue
 
                 if is_date or any(norm_member.startswith(p) or f"/{scene}/" in norm_member for p in target_prefixes):
-                    dest_file = os.path.join(output_dir, member)
-                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                    with zf.open(member) as src, open(dest_file, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
-                    scene_files.append(dest_file)
+                    zinfo = zinfo_map[member]
+                    dest_path = safe_extract_zip_member(zf, zinfo, output_dir, written_destinations)
+                    scene_files.append(str(dest_path))
 
             extracted_records[scene] = {
                 "extracted_files_count": len(scene_files),
@@ -202,39 +239,39 @@ def extract_selective_labels(
     manifest_path: str,
     expected_split: str
 ) -> Dict[str, Any]:
+    print(f"\n[EXTRACTION] Opening {expected_split} labels archive: {zip_path}")
     with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
 
-    expected_scenes = {s["scene_id"] for s in manifest["scenes"] if s["canonical_split"] == expected_split}
-    extracted_scenes = set()
+    expected_scenes = {s["scene_id"] for s in manifest["scenes"] if s.get("canonical_split") == expected_split}
+    seen_masks = {}
+    written_destinations = set()
 
     with zipfile.ZipFile(zip_path, "r") as zf:
-        for member in zf.namelist():
-            zinfo = zf.getinfo(member)
-            if not is_safe_zip_member(output_dir, zinfo):
-                raise RuntimeError(f"Zip-Slip or unsafe entry detected in label member: {member}")
-            norm_member = member.replace('\\', '/')
+        for member in zf.infolist():
+            norm_member = member.filename.replace('\\', '/')
             basename = os.path.basename(norm_member)
             if basename.endswith("-cm.tif"):
-                parts = norm_member.split('/')
+                parts = [p for p in norm_member.split('/') if p]
                 matching = [s for s in expected_scenes if s in parts]
-                if matching:
-                    scene_id = matching[0]
-                    dest_file = os.path.join(output_dir, norm_member)
-                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-                    with zf.open(member) as src, open(dest_file, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
-                    extracted_scenes.add(scene_id)
+                if not matching:
+                    raise SecurityError(f"Unexpected mask member / scene ID rejected: {norm_member}")
+                scene_id = matching[0]
+                if scene_id in seen_masks:
+                    raise SecurityError(f"Duplicate mask member for scene '{scene_id}' in archive: {norm_member}")
+
+                dest_path = safe_extract_zip_member(zf, member, output_dir, written_destinations)
+                seen_masks[scene_id] = dest_path
 
     expected_count = 14 if expected_split == "train" else 10
-    if len(extracted_scenes) != expected_count:
+    if set(seen_masks.keys()) != expected_scenes or len(seen_masks) != expected_count:
         raise RuntimeError(
-            f"Label extraction mismatch for split '{expected_split}': "
-            f"Expected {expected_count} scenes, extracted {len(extracted_scenes)}. "
-            f"Missing: {sorted(expected_scenes - extracted_scenes)}"
+            f"Strict label extraction mismatch for split '{expected_split}': "
+            f"Expected {expected_count} unique scenes {sorted(expected_scenes)}, but extracted {len(seen_masks)}. "
+            f"Missing: {sorted(expected_scenes - set(seen_masks.keys()))}"
         )
-    print(f"[LABELS] Successfully extracted exactly {len(extracted_scenes)} {expected_split} ground-truth masks.")
-    return {"split": expected_split, "extracted_count": len(extracted_scenes), "scenes": sorted(extracted_scenes)}
+    print(f"[LABELS] Successfully extracted exactly {len(seen_masks)} {expected_split} ground-truth masks.")
+    return {"split": expected_split, "extracted_count": len(seen_masks), "scenes": sorted(seen_masks.keys())}
 
 def main():
     parser = argparse.ArgumentParser(description="ORBINEX Cloud Multispectral OSCD Ingestion & Verification")

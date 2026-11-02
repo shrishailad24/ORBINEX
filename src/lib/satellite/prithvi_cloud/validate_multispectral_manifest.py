@@ -11,6 +11,21 @@ import argparse
 from pathlib import Path
 import sys
 
+class SecurityError(RuntimeError):
+    """Raised when path traversal or containment violation is detected."""
+    pass
+
+def is_path_contained(target_path: Path, base_dir: Path) -> bool:
+    try:
+        target_resolved = target_path.resolve(strict=False)
+        base_resolved = base_dir.resolve(strict=True)
+        try:
+            return target_resolved.is_relative_to(base_resolved)
+        except AttributeError:
+            return os.path.commonpath([str(target_resolved), str(base_resolved)]) == str(base_resolved)
+    except (ValueError, OSError):
+        return False
+
 def get_sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, 'rb') as f:
@@ -83,13 +98,9 @@ def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectr
         rel_path = gt_info.get('relative_tif_path')
         if not rel_path:
             raise ValueError(f"[MANIFEST ERROR] Scene '{s['scene_id']}' missing required portable key 'relative_tif_path'.")
-        target_path = (data_dir_resolved / rel_path).resolve()
-        try:
-            is_contained = target_path.is_relative_to(data_dir_resolved)
-        except AttributeError:
-            is_contained = str(target_path).startswith(str(data_dir_resolved))
-        if not is_contained:
-            raise RuntimeError(f"[SECURITY VIOLATION] Ground truth path escaped data_dir: {target_path}")
+        target_path = (data_dir_resolved / rel_path).resolve(strict=False)
+        if not is_path_contained(target_path, data_dir_resolved):
+            raise SecurityError(f"[SECURITY VIOLATION] Ground truth path escaped data_dir: {target_path}")
 
         expected_sha = gt_info.get('sha256')
         if not target_path.is_file():

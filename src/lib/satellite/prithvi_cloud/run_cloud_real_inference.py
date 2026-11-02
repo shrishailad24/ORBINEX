@@ -49,7 +49,7 @@ OFFICIAL_HF_REPO = "ibm-nasa-geospatial/Prithvi-EO-2.0-300M"
 OFFICIAL_WEIGHTS_FILENAME = "Prithvi_EO_V2_300M.pt"
 OFFICIAL_WEIGHTS_URL = f"https://huggingface.co/{OFFICIAL_HF_REPO}/resolve/main/{OFFICIAL_WEIGHTS_FILENAME}"
 OFFICIAL_WEIGHTS_SHA256 = "faab2c8b776f0723f93431747603a7ec586a54fc45473613b4322c29752486e7"
-OFFICIAL_WEIGHTS_SIZE_BYTES = 1326658396  # Pinned physical size verified via Hugging Face HTTP HEAD and external cache
+OFFICIAL_WEIGHTS_SIZE_BYTES = 1326658396  # Pending authoritative Colab runtime physical verification; fallback/pre-fetch historical: 1326275549
 
 # Official ONERA OSCD Images Archive Constants
 OFFICIAL_IMAGES_URL = "https://partage.imt.fr/index.php/s/gKRaWgRnLMfwMGo/download"
@@ -200,7 +200,9 @@ def assemble_authentic_multispectral_tensor(
         lines = [l.strip() for l in df.readlines() if l.strip()]
     if len(lines) < 2:
         raise ValueError(f"[GATE 4 FAILED] Incomplete temporal dates in {dates_file} (expected >= 2 dates)")
-    t1_date, t2_date = lines[0], lines[1]
+    t1_line, t2_line = lines[0], lines[1]
+    t1_token = t1_line.split()[-1]
+    t2_token = t2_line.split()[-1]
     def parse_date(d_str: str) -> datetime:
         for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
             try:
@@ -208,10 +210,10 @@ def assemble_authentic_multispectral_tensor(
             except ValueError:
                 pass
         raise ValueError(f"[GATE 4 FAILED] Unrecognized date format in dates.txt: '{d_str}'")
-    dt1 = parse_date(t1_date)
-    dt2 = parse_date(t2_date)
+    dt1 = parse_date(t1_token)
+    dt2 = parse_date(t2_token)
     if dt1 >= dt2:
-        raise ValueError(f"[GATE 4 FAILED] Temporal violation: T1 ({t1_date}) is not chronologically earlier than T2 ({t2_date})")
+        raise ValueError(f"[GATE 4 FAILED] Temporal violation: T1 ({t1_token}) is not chronologically earlier than T2 ({t2_token})")
 
     t1_arrays = []
     t2_arrays = []
@@ -322,8 +324,8 @@ def assemble_authentic_multispectral_tensor(
     provenance = {
         "band_names": REQUIRED_6_BANDS,
         "temporal_dates": {
-            "t1_date": t1_date,
-            "t2_date": t2_date,
+            "t1_date": t1_token,
+            "t2_date": t2_token,
             "chronological_order_verified": bool(dt1 < dt2)
         },
         "geospatial_metadata": geo_metadata,
