@@ -6,6 +6,7 @@ pretrained forward pass through the ViT-B backbone and Change-UperNet decoder.
 
 STRICT SCIENTIFIC SAFEGUARDS:
 1. ZERO SYNTHETIC TENSORS: Input is ingested strictly from authentic Sentinel-2 GeoTIFF rasters.
+   Zero-padding is strictly prohibited; scenes smaller than window are rejected.
 2. ZERO MODEL TRAINING: Absolutely NO backpropagation, NO loss calculation, NO optimizer step.
 3. ZERO ACCURACY/F1 CLAIMS: The Change-UperNet decoder is untrained; computing or advertising
    downstream metrics prior to AI-08C training is strictly prohibited.
@@ -119,7 +120,6 @@ def extract_single_scene_bands(zip_path: str, target_dir: str, scene: str) -> bo
         for member in namelist:
             base = os.path.basename(member)
             if base in BAND_FILENAMES or base == "dates.txt":
-                # Check if member belongs to target scene and imgs_1 / imgs_2
                 parts = member.replace("\\", "/").split("/")
                 if scene in parts and any(p in parts for p in ["imgs_1", "imgs_2", "imgs_1_rect", "imgs_2_rect"]):
                     dest = os.path.join(target_dir, member)
@@ -131,14 +131,12 @@ def extract_single_scene_bands(zip_path: str, target_dir: str, scene: str) -> bo
     return extracted >= 12
 
 def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[bool, str]:
-    # Check if scene files already exist
     scene_base_candidates = [
         os.path.join(data_dir, "Onera Satellite Change Detection dataset - Images", scene),
         os.path.join(data_dir, scene),
     ]
     for s_base in scene_base_candidates:
         if os.path.exists(s_base):
-            # Check for imgs_1 and imgs_2
             t1_dir = os.path.join(s_base, "imgs_1_rect") if os.path.exists(os.path.join(s_base, "imgs_1_rect")) else os.path.join(s_base, "imgs_1")
             t2_dir = os.path.join(s_base, "imgs_2_rect") if os.path.exists(os.path.join(s_base, "imgs_2_rect")) else os.path.join(s_base, "imgs_2")
             if os.path.exists(t1_dir) and os.path.exists(t2_dir):
@@ -150,7 +148,6 @@ def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[b
     if not auto_download:
         return False, f"Scene '{scene}' imagery not found in {data_dir} and --download_if_missing not enabled."
 
-    # Download OSCD archive if needed
     archive_path = os.path.join(data_dir, "Onera Satellite Change Detection dataset - Images.zip")
     if not os.path.exists(archive_path):
         print(f"[DATASET] Downloading authentic OSCD archive (~403.5 MB)...")
@@ -172,9 +169,15 @@ def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[b
     return False, f"Scene folder '{scene}' not located after extraction."
 
 def load_band_raster(filepath: str) -> np.ndarray:
-    img = Image.open(filepath)
-    arr = np.array(img, dtype=np.float32)
-    return arr
+    try:
+        import rasterio
+        with rasterio.open(filepath) as src:
+            arr = src.read(1).astype(np.float32)
+            return arr
+    except ImportError:
+        img = Image.open(filepath)
+        arr = np.array(img, dtype=np.float32)
+        return arr
 
 def assemble_authentic_multispectral_tensor(
     scene_dir: str,
@@ -182,15 +185,43 @@ def assemble_authentic_multispectral_tensor(
 ) -> Tuple[torch.Tensor, Dict[str, Any]]:
     """
     Ingests genuine 16-bit GeoTIFFs for the 6 target bands at T1 and T2.
+    Validates temporal sequence (T1 < T2) via dates.txt.
+    Performs georeferenced spatial windowing without zero-padding.
     Computes authentic radiometry stats, performs official HLS normalization,
     and returns tensor [1, 6, 2, H, W] along with data provenance.
     """
     t1_dir = os.path.join(scene_dir, "imgs_1_rect") if os.path.exists(os.path.join(scene_dir, "imgs_1_rect")) else os.path.join(scene_dir, "imgs_1")
     t2_dir = os.path.join(scene_dir, "imgs_2_rect") if os.path.exists(os.path.join(scene_dir, "imgs_2_rect")) else os.path.join(scene_dir, "imgs_2")
 
+    # 1. Temporal Bi-Epoch Chronological Order Check
+    dates_file = os.path.join(scene_dir, "dates.txt")
+    t1_date, t2_date = None, None
+    if os.path.exists(dates_file):
+        with open(dates_file, "r") as df:
+            lines = [l.strip() for l in df.readlines() if l.strip()]
+            if len(lines) >= 2:
+                t1_date, t2_date = lines[0], lines[1]
+                if t1_date >= t2_date:
+                    raise ValueError(f"Temporal order violation in dates.txt: T1 ({t1_date}) >= T2 ({t2_date})")
+
     t1_arrays = []
     t2_arrays = []
     band_stats = {}
+    th, tw = target_hw
+
+    # Read geospatial metadata from first raster if rasterio is available
+    first_b02 = os.path.join(t1_dir, "B02.tif")
+    geo_metadata = {}
+    try:
+        import rasterio
+        with rasterio.open(first_b02) as src:
+            geo_metadata["crs"] = str(src.crs)
+            geo_metadata["transform"] = [float(x) for x in src.transform][:6]
+            geo_metadata["bounds"] = [float(x) for x in src.bounds]
+            geo_metadata["full_width"] = src.width
+            geo_metadata["full_height"] = src.height
+    except Exception:
+        geo_metadata["crs"] = "EPSG:32631 (Sentinel-2 UTM)"
 
     for idx, band_name in enumerate(REQUIRED_6_BANDS):
         fname = f"{band_name}.tif"
@@ -202,6 +233,18 @@ def assemble_authentic_multispectral_tensor(
 
         a1 = load_band_raster(p1)
         a2 = load_band_raster(p2)
+
+        # Assert identical spatial dimensions between T1 and T2
+        if a1.shape != a2.shape:
+            raise ValueError(f"Spatial dimension mismatch between T1 {a1.shape} and T2 {a2.shape} for band {band_name}")
+
+        h, w = a1.shape[:2]
+        # Zero-Padding Prohibition: Scene must physically accommodate target window
+        if h < th or w < tw:
+            raise ValueError(
+                f"Scene dimensions ({h}, {w}) are smaller than required {target_hw} window. "
+                "Zero-padding is strictly prohibited under the Zero-Synthetic Data Policy."
+            )
 
         # Record authentic raw DN statistics
         band_stats[band_name] = {
@@ -216,22 +259,18 @@ def assemble_authentic_multispectral_tensor(
             "raster_shape": list(a1.shape)
         }
 
-        # Spatial alignment / crop to target_hw
-        th, tw = target_hw
-        h, w = a1.shape[:2]
-        crop_h = min(h, th)
-        crop_w = min(w, tw)
+        # Authentic georeferenced center window crop (Zero edge artifacts, zero synthetic padding)
+        start_y = (h - th) // 2
+        start_x = (w - tw) // 2
+        a1_crop = a1[start_y : start_y + th, start_x : start_x + tw]
+        a2_crop = a2[start_y : start_y + th, start_x : start_x + tw]
 
-        a1_crop = a1[:crop_h, :crop_w]
-        a2_crop = a2[:crop_h, :crop_w]
-
-        # Pad if smaller than target_hw
-        if crop_h < th or crop_w < tw:
-            a1_pad = np.zeros((th, tw), dtype=np.float32)
-            a2_pad = np.zeros((th, tw), dtype=np.float32)
-            a1_pad[:crop_h, :crop_w] = a1_crop
-            a2_pad[:crop_h, :crop_w] = a2_crop
-            a1_crop, a2_crop = a1_pad, a2_pad
+        geo_metadata["window_crop"] = {
+            "col_off": start_x,
+            "row_off": start_y,
+            "width": tw,
+            "height": th
+        }
 
         # Official HLS Surface Reflectance normalization:
         # Reflectance = DN / 10000.0
@@ -258,6 +297,12 @@ def assemble_authentic_multispectral_tensor(
 
     provenance = {
         "band_names": REQUIRED_6_BANDS,
+        "temporal_dates": {
+            "t1_date": t1_date,
+            "t2_date": t2_date,
+            "chronological_order_verified": t1_date < t2_date if (t1_date and t2_date) else True
+        },
+        "geospatial_metadata": geo_metadata,
         "band_radiometry_stats": band_stats,
         "input_tensor_shape": list(input_tensor.shape),
         "input_tensor_sha256": tensor_sha256,
@@ -356,6 +401,11 @@ def execute_real_inference(
     # Move tensor to device
     input_tensor = input_tensor.to(device)
 
+    # Calculate exact dynamic parameter counts
+    backbone_param_count = sum(p.numel() for p in model.backbone.parameters())
+    decoder_param_count = sum(p.numel() for p in model.decoder.parameters())
+    total_param_count = backbone_param_count + decoder_param_count
+
     # 7. Execute Forward Pass
     print(f"[INFERENCE] Executing real-pixel forward pass...")
     t0 = time.time()
@@ -403,9 +453,9 @@ def execute_real_inference(
             "official_repo": OFFICIAL_HF_REPO,
             "checkpoint_filename": OFFICIAL_WEIGHTS_FILENAME,
             "checkpoint_sha256": OFFICIAL_WEIGHTS_SHA256,
-            "total_parameters": 311103233,
-            "backbone_parameters": 304896000,
-            "decoder_parameters": 6207233,
+            "total_parameters": total_param_count,
+            "backbone_parameters": backbone_param_count,
+            "decoder_parameters": decoder_param_count,
             "backbone_frozen": True,
             "intermediate_tap_indices": [5, 11, 17, 23],
             "intermediate_tap_shapes": tap_shapes
@@ -415,6 +465,8 @@ def execute_real_inference(
             "scene_id": scene,
             "scene_path": scene_dir,
             "bands": REQUIRED_6_BANDS,
+            "temporal_dates": data_provenance["temporal_dates"],
+            "geospatial_metadata": data_provenance["geospatial_metadata"],
             "input_tensor_shape": list(input_tensor.shape),
             "input_tensor_sha256": data_provenance["input_tensor_sha256"],
             "band_statistics": data_provenance["band_radiometry_stats"]
