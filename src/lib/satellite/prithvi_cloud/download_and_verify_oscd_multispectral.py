@@ -1,7 +1,7 @@
 """
 ORBINEX — Cloud OSCD Multispectral Acquisition & Verification Pipeline
-Downloads official ONERA OSCD 13-band Sentinel-2 assets, verifies MD5 checksums,
-and selectively extracts the 6 authentic bands required for Prithvi-EO-2.0.
+Downloads official ONERA OSCD 13-band Sentinel-2 assets and official ground-truth labels,
+verifies MD5 checksums, and selectively extracts the 6 authentic bands required for Prithvi-EO-2.0.
 
 ZERO-SYNTHESIS POLICY:
 Never synthesizes missing bands.
@@ -12,18 +12,53 @@ Preserves authentic DN values and metadata.
 import os
 import sys
 import argparse
+import re
 import hashlib
 import json
 import shutil
 import urllib.request
 import zipfile
+from pathlib import Path
 from typing import List, Dict, Any
 
 OFFICIAL_IMAGES_URL = "https://partage.imt.fr/index.php/s/gKRaWgRnLMfwMGo/download"
 OFFICIAL_IMAGES_MD5 = "c50d4a2941da64e03a47ac4dec63d915"
 HUGGINGFACE_MIRROR_URL = "https://huggingface.co/datasets/blanchon/OSCD_MSI/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Images.zip"
 
+TRAIN_LABELS_URL = "https://partage.mines-telecom.fr/index.php/s/2D6n03k58ygBSpu/download"
+TRAIN_LABELS_MD5 = "4d2965af8170c705ebad3d6ee71b6990"
+TRAIN_LABELS_HF_MIRROR = "https://huggingface.co/datasets/blanchon/OSCD_MSI/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Train%20Labels.zip"
+
+TEST_LABELS_URL = "https://partage.imt.fr/index.php/s/gpStKn4Mpgfnr63/download"
+TEST_LABELS_MD5 = "8177d437793c522653c442aa4e66c617"
+TEST_LABELS_HF_MIRROR = "https://huggingface.co/datasets/blanchon/OSCD_MSI/resolve/main/Onera%20Satellite%20Change%20Detection%20dataset%20-%20Test%20Labels.zip"
+
 REQUIRED_BANDS = ["B02.tif", "B03.tif", "B04.tif", "B8A.tif", "B11.tif", "B12.tif"]
+
+def clean_url(raw_url: str) -> str:
+    if not raw_url:
+        return ""
+    match = re.search(r'\((https?://[^)]+)\)', raw_url)
+    if match:
+        return match.group(1).strip()
+    return raw_url.strip('`"\' \t\r\n')
+
+def is_safe_zip_member(base_dir: str, member: zipfile.ZipInfo) -> bool:
+    mode = member.external_attr >> 16
+    if mode & 0o170000 == 0o120000:
+        return False
+    norm_name = member.filename.replace('\\', '/')
+    if norm_name.startswith('/') or re.match(r'^[a-zA-Z]:', norm_name):
+        return False
+    parts = [p for p in norm_name.split('/') if p]
+    if any(p == '..' for p in parts):
+        return False
+    dest_path = (Path(base_dir) / norm_name).resolve()
+    base_path = Path(base_dir).resolve()
+    try:
+        return dest_path.is_relative_to(base_path)
+    except AttributeError:
+        return str(dest_path).startswith(str(base_path))
 
 def compute_md5(filepath: str) -> str:
     h = hashlib.md5()
@@ -52,28 +87,51 @@ def check_disk_space(target_path: str, required_gb: float = 3.0) -> bool:
         print(f"[DISK CHECK] Could not determine disk space: {e}")
         return True
 
-def download_file(url: str, output_path: str, expected_md5: str) -> bool:
-    print(f"[DOWNLOAD] Fetching authentic archive from: {url}")
-    print(f"[DOWNLOAD] Destination: {output_path}")
+def ensure_verified_archive(url: str, mirror_url: str, output_path: str, expected_md5: str) -> bool:
+    url = clean_url(url)
+    mirror_url = clean_url(mirror_url)
+    if os.path.exists(output_path):
+        print(f"[CHECKSUM] Existing archive found at {output_path}. Verifying MD5...")
+        if compute_md5(output_path).lower() == expected_md5.lower():
+            print(f"[CHECKSUM PASSED] Existing archive matches expected MD5: {expected_md5}")
+            return True
+        print(f"[CHECKSUM MISMATCH] Existing archive corrupted! Purging {output_path}...")
+        os.remove(output_path)
 
+    part_path = output_path + ".part"
+    if os.path.exists(part_path):
+        os.remove(part_path)
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    print(f"[DOWNLOAD] Fetching authentic archive from: {url}")
     def progress(block_num, block_size, total_size):
         read_bytes = block_num * block_size
-        if total_size > 0:
+        if total_size > 0 and block_num % 1000 == 0:
             pct = min(100.0, (read_bytes / total_size) * 100)
-            if block_num % 1000 == 0:
-                print(f"  Downloaded: {read_bytes / (1024**2):.1f} MB / {total_size / (1024**2):.1f} MB ({pct:.1f}%)")
+            print(f"  Downloaded: {read_bytes / (1024**2):.1f} MB / {total_size / (1024**2):.1f} MB ({pct:.1f}%)")
 
+    fetched = False
     try:
-        urllib.request.urlretrieve(url, output_path, reporthook=progress)
+        urllib.request.urlretrieve(url, part_path, reporthook=progress)
+        fetched = True
     except Exception as e:
-        print(f"[DOWNLOAD ERROR] Primary URL failed ({e}). Checking alternative mirrors...")
-        return False
+        print(f"[DOWNLOAD ERROR] Primary URL failed ({e}). Trying mirror: {mirror_url}")
+        try:
+            urllib.request.urlretrieve(mirror_url, part_path, reporthook=progress)
+            fetched = True
+        except Exception as e2:
+            print(f"[DOWNLOAD FATAL] Mirror also failed ({e2}).")
+            if os.path.exists(part_path):
+                os.remove(part_path)
+            return False
 
-    print("[CHECKSUM] Computing MD5 checksum...")
-    actual_md5 = compute_md5(output_path)
+    print("[CHECKSUM] Computing MD5 checksum on downloaded asset...")
+    actual_md5 = compute_md5(part_path)
     if actual_md5.lower() != expected_md5.lower():
         print(f"[CHECKSUM FAILED] MD5 mismatch! Got: {actual_md5}, Expected: {expected_md5}")
+        os.remove(part_path)
         return False
+    os.replace(part_path, output_path)
     print(f"[CHECKSUM PASSED] Authentic MD5 verified: {actual_md5}")
     return True
 
@@ -83,16 +141,11 @@ def extract_selective_bands(
     manifest_path: str,
     extract_rect_10m: bool = True
 ) -> Dict[str, Any]:
-    """
-    Selectively extracts only the 6 required bands and dates.txt
-    from Onera Satellite Change Detection dataset - Images.zip.
-    Reduces disk footprint from 1.5 GB down to ~350 MB.
-    """
-    with open(manifest_path, "r") as f:
+    with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
 
     scene_names = [s["scene_id"] for s in manifest["scenes"]]
-    print(f"[EXTRACTION] Starting selective extraction for {len(scene_names)} scenes...")
+    print(f"[EXTRACTION] Starting selective extraction of bands & dates for {len(scene_names)} scenes...")
 
     extracted_records = {}
 
@@ -103,7 +156,6 @@ def extract_selective_bands(
 
         for scene in scene_names:
             scene_files = []
-            # Target members
             target_prefixes = [
                 f"Onera Satellite Change Detection dataset - Images/{scene}/imgs_1/",
                 f"Onera Satellite Change Detection dataset - Images/{scene}/imgs_2/",
@@ -119,15 +171,17 @@ def extract_selective_bands(
                 ])
 
             for member in namelist:
-                # Match required bands or dates.txt
-                basename = os.path.basename(member)
+                zinfo = zf.getinfo(member)
+                if not is_safe_zip_member(output_dir, zinfo):
+                    raise RuntimeError(f"Zip-Slip or unsafe entry detected in member: {member}")
+                norm_member = member.replace('\\', '/')
+                basename = os.path.basename(norm_member)
                 is_band = basename in REQUIRED_BANDS
-                is_date = basename == "dates.txt"
+                is_date = basename == "dates.txt" and (f"/{scene}/" in norm_member or norm_member.startswith(f"{scene}/"))
                 if not (is_band or is_date):
                     continue
 
-                if any(member.startswith(p) or f"/{scene}/" in member for p in target_prefixes):
-                    # Extract this member
+                if is_date or any(norm_member.startswith(p) or f"/{scene}/" in norm_member for p in target_prefixes):
                     dest_file = os.path.join(output_dir, member)
                     os.makedirs(os.path.dirname(dest_file), exist_ok=True)
                     with zf.open(member) as src, open(dest_file, "wb") as dst:
@@ -141,6 +195,46 @@ def extract_selective_bands(
             print(f"  [SCENE] {scene:15s}: Extracted {len(scene_files)} multispectral assets")
 
     return extracted_records
+
+def extract_selective_labels(
+    zip_path: str,
+    output_dir: str,
+    manifest_path: str,
+    expected_split: str
+) -> Dict[str, Any]:
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    expected_scenes = {s["scene_id"] for s in manifest["scenes"] if s["canonical_split"] == expected_split}
+    extracted_scenes = set()
+
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        for member in zf.namelist():
+            zinfo = zf.getinfo(member)
+            if not is_safe_zip_member(output_dir, zinfo):
+                raise RuntimeError(f"Zip-Slip or unsafe entry detected in label member: {member}")
+            norm_member = member.replace('\\', '/')
+            basename = os.path.basename(norm_member)
+            if basename.endswith("-cm.tif"):
+                parts = norm_member.split('/')
+                matching = [s for s in expected_scenes if s in parts]
+                if matching:
+                    scene_id = matching[0]
+                    dest_file = os.path.join(output_dir, norm_member)
+                    os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+                    with zf.open(member) as src, open(dest_file, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    extracted_scenes.add(scene_id)
+
+    expected_count = 14 if expected_split == "train" else 10
+    if len(extracted_scenes) != expected_count:
+        raise RuntimeError(
+            f"Label extraction mismatch for split '{expected_split}': "
+            f"Expected {expected_count} scenes, extracted {len(extracted_scenes)}. "
+            f"Missing: {sorted(expected_scenes - extracted_scenes)}"
+        )
+    print(f"[LABELS] Successfully extracted exactly {len(extracted_scenes)} {expected_split} ground-truth masks.")
+    return {"split": expected_split, "extracted_count": len(extracted_scenes), "scenes": sorted(extracted_scenes)}
 
 def main():
     parser = argparse.ArgumentParser(description="ORBINEX Cloud Multispectral OSCD Ingestion & Verification")
@@ -161,7 +255,7 @@ def main():
         print(f"[ERROR] Manifest not found: {manifest_path}")
         sys.exit(1)
 
-    with open(manifest_path, "r") as f:
+    with open(manifest_path, "r", encoding="utf-8") as f:
         manifest = json.load(f)
 
     print(f"Manifest: {manifest['dataset_name']}")
@@ -171,9 +265,13 @@ def main():
     if args.dry_run:
         print("\n[DRY RUN] Validating cloud deployment readiness...")
         check_disk_space(os.getcwd(), required_gb=1.0)
-        print(" [PASS] Primary URL:", OFFICIAL_IMAGES_URL)
-        print(" [PASS] Secondary Mirror:", HUGGINGFACE_MIRROR_URL)
-        print(" [PASS] Archive Expected MD5:", OFFICIAL_IMAGES_MD5)
+        print(" [PASS] Primary Images URL:", clean_url(OFFICIAL_IMAGES_URL))
+        print(" [PASS] Secondary Images Mirror:", clean_url(HUGGINGFACE_MIRROR_URL))
+        print(" [PASS] Images Archive Expected MD5:", OFFICIAL_IMAGES_MD5)
+        print(" [PASS] Train Labels URL:", clean_url(TRAIN_LABELS_URL))
+        print(" [PASS] Train Labels Expected MD5:", TRAIN_LABELS_MD5)
+        print(" [PASS] Test Labels URL:", clean_url(TEST_LABELS_URL))
+        print(" [PASS] Test Labels Expected MD5:", TEST_LABELS_MD5)
         print(" [PASS] Zero-synthesis policy active.")
         print("\n>>> DRY RUN SUCCEEDED: CLOUD INGESTION SPECIFICATION VALIDATED. <<<")
         return
@@ -185,17 +283,29 @@ def main():
         sys.exit(1)
 
     archive_path = os.path.join(args.target_dir, "Onera Satellite Change Detection dataset - Images.zip")
-    if not os.path.exists(archive_path):
-        success = download_file(OFFICIAL_IMAGES_URL, archive_path, OFFICIAL_IMAGES_MD5)
-        if not success:
-            print("[FALLBACK] Attempting Hugging Face mirror download...")
-            success = download_file(HUGGINGFACE_MIRROR_URL, archive_path, OFFICIAL_IMAGES_MD5)
-            if not success:
-                print("[FATAL] All download sources failed.")
-                sys.exit(1)
+    train_labels_archive = os.path.join(args.target_dir, "Onera Satellite Change Detection dataset - Train Labels.zip")
+    test_labels_archive = os.path.join(args.target_dir, "Onera Satellite Change Detection dataset - Test Labels.zip")
 
+    # 1. Download & Verify Images Archive
+    if not ensure_verified_archive(OFFICIAL_IMAGES_URL, HUGGINGFACE_MIRROR_URL, archive_path, OFFICIAL_IMAGES_MD5):
+        print("[FATAL] Failed to acquire verified OSCD Images archive.")
+        sys.exit(1)
+
+    # 2. Download & Verify Train Labels Archive
+    if not ensure_verified_archive(TRAIN_LABELS_URL, TRAIN_LABELS_HF_MIRROR, train_labels_archive, TRAIN_LABELS_MD5):
+        print("[FATAL] Failed to acquire verified OSCD Train Labels archive.")
+        sys.exit(1)
+
+    # 3. Download & Verify Test Labels Archive
+    if not ensure_verified_archive(TEST_LABELS_URL, TEST_LABELS_HF_MIRROR, test_labels_archive, TEST_LABELS_MD5):
+        print("[FATAL] Failed to acquire verified OSCD Test Labels archive.")
+        sys.exit(1)
+
+    # 4. Extract Bands and Labels across all scenes
     records = extract_selective_bands(archive_path, args.target_dir, manifest_path)
-    print("\n[SUMMARY] Extraction complete. All scenes verified.")
+    train_records = extract_selective_labels(train_labels_archive, args.target_dir, manifest_path, expected_split="train")
+    test_records = extract_selective_labels(test_labels_archive, args.target_dir, manifest_path, expected_split="test")
+    print(f"\n[SUMMARY] Extraction complete. 24 scenes with 6 bands and {train_records['extracted_count'] + test_records['extracted_count']} masks verified.")
 
 if __name__ == "__main__":
     main()

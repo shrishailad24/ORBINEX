@@ -144,7 +144,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\nantes\\cm\\nantes-cm.tif",
         "sha256": "9dec7d4eab48802131ce1e62259801f6ae078c39e3567dd2271151b7a369fd54",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/nantes/cm/nantes-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -184,7 +185,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\pisa\\cm\\pisa-cm.tif",
         "sha256": "4e27ad6a98436566808ad6b1f3867228f670dc771baeb6b8d2c1c26572806874",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/pisa/cm/pisa-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -224,7 +226,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\rennes\\cm\\rennes-cm.tif",
         "sha256": "2f256707a931a34682b6c6bb2cb04a131b04a2ca3669c36efcfe9cef002c2778",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/rennes/cm/rennes-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -264,7 +267,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\cupertino\\cm\\cupertino-cm.tif",
         "sha256": "4b5d2ef20874a514726048dea9fb75fd2bb172b4f1b169ad17f26a680383f1da",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/cupertino/cm/cupertino-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -304,7 +308,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\aguasclaras\\cm\\aguasclaras-cm.tif",
         "sha256": "0e124b04a1592887b7f2c5c09ffcc1ddaf53eca3964bafb142604a20c05754eb",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/aguasclaras/cm/aguasclaras-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -344,7 +349,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\bordeaux\\cm\\bordeaux-cm.tif",
         "sha256": "655c2280b1aba327bb0830c230b6ff9896ff72bc679b851cf51a05b1d3617125",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/bordeaux/cm/bordeaux-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -384,7 +390,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\beihai\\cm\\beihai-cm.tif",
         "sha256": "bd3cb342c3aa658033e1dbd1a9de6f395200dfa61976f9ee3b94760a194ba16a",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/beihai/cm/beihai-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -424,7 +431,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\hongkong\\cm\\hongkong-cm.tif",
         "sha256": "734e2efc4d8b5ffac6351e8db97c695c75ac136b0ba917cb3edec853995b606d",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/hongkong/cm/hongkong-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -464,7 +472,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\beirut\\cm\\beirut-cm.tif",
         "sha256": "0197852420a8958968cede548403d84fcd16b4a47aecd3d4f422def14e2f5452",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/beirut/cm/beirut-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -504,7 +513,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\paris\\cm\\paris-cm.tif",
         "sha256": "5cea96cc4ad12c247c7ebc7c0cfec9dfb8fb50a6164e532cd2dc975e54c27919",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/paris/cm/paris-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -544,7 +554,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\mumbai\\cm\\mumbai-cm.tif",
         "sha256": "89aea8832301e71eae2a54a3220e06b25b9fe694f590323b920790d5f8d0da95",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/mumbai/cm/mumbai-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -584,7 +595,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\saclay_e\\cm\\saclay_e-cm.tif",
         "sha256": "17d8ce05a9e9421caf49e2aee3381597766f57b9ae0a42a4372c4bda797816a3",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/saclay_e/cm/saclay_e-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -624,7 +636,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\bercy\\cm\\bercy-cm.tif",
         "sha256": "f542af5369d07f6f3d3f5cdc5f61de549a97ed225f237ac8a73d26cfac1587b1",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/bercy/cm/bercy-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -664,7 +677,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\train_labels\\Onera Satellite Change Detection dataset - Train Labels\\abudhabi\\cm\\abudhabi-cm.tif",
         "sha256": "2fff7e92b93b09c4909e3a89289e826f7bf6a15a60c55f82c4d2b181ec660eea",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Train Labels/abudhabi/cm/abudhabi-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -704,7 +718,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\rio\\cm\\rio-cm.tif",
         "sha256": "c8ea0f6f54d0fd956a98a3ff4907fa9dc9904f4001ccf216451f2410bc578716",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/rio/cm/rio-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -744,7 +759,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\saclay_w\\cm\\saclay_w-cm.tif",
         "sha256": "36ce900a680a5036ec06f994b950a52e77329a05f1b2e6c0dfb93277a365c7fc",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/saclay_w/cm/saclay_w-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -784,7 +800,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\valencia\\cm\\valencia-cm.tif",
         "sha256": "4d29dda30e2213f7ffd6506618d043b765e6e3d467dd4c057f6da1b687fb20e6",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/valencia/cm/valencia-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -824,7 +841,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\chongqing\\cm\\chongqing-cm.tif",
         "sha256": "8f50525ae85867e04276f89aedb6988b326974a73c006116f356b76ff00143c3",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/chongqing/cm/chongqing-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -864,7 +882,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\montpellier\\cm\\montpellier-cm.tif",
         "sha256": "d8e35393c4b54156a4382feaf768e9815114ecb53dfd7f3f6f9a010914ae7b26",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/montpellier/cm/montpellier-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -904,7 +923,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\brasilia\\cm\\brasilia-cm.tif",
         "sha256": "55210393f4b408d44c66bd314deeff2c2c2875b75650944232f06179b1ec32da",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/brasilia/cm/brasilia-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -944,7 +964,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\norcia\\cm\\norcia-cm.tif",
         "sha256": "9dea9f93a1ddb3dffd566777dc72eab6c1fc441176860033b348c2b9debc0c84",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/norcia/cm/norcia-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -984,7 +1005,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\dubai\\cm\\dubai-cm.tif",
         "sha256": "ca0c48d226fe19328373f319a8c25f954c382eadf22ec676d91bbc0c9faeb8b8",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/dubai/cm/dubai-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -1024,7 +1046,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\milano\\cm\\milano-cm.tif",
         "sha256": "97e0847efb006061cd3829b694ddf3fc8c58382069fcb5bd198a27a6298d5bc3",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/milano/cm/milano-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     },
@@ -1064,7 +1087,8 @@
       "ground_truth": {
         "local_tif_path": "C:\\Users\\shash\\Downloads\\osiris-master\\osiris-master\\.cache\\oscd\\test_labels\\Onera Satellite Change Detection dataset - Test Labels\\lasvegas\\cm\\lasvegas-cm.tif",
         "sha256": "7fa9b17a987922100c343b94c0a0061e78232c0deb8c71caf15b3283e6e67fb6",
-        "verified_on_disk": true
+        "verified_on_disk": true,
+        "relative_tif_path": "Onera Satellite Change Detection dataset - Test Labels/lasvegas/cm/lasvegas-cm.tif"
       },
       "status": "AUTHENTIC_MULTISPECTRAL_AVAILABLE_FOR_CLOUD_DOWNLOAD"
     }

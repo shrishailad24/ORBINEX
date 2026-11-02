@@ -1,12 +1,14 @@
 """
 ORBINEX — OSCD Multispectral Manifest Validator
-Validates the scientific integrity, split separation, band completeness,
+Validates scientific integrity, split separation, band completeness,
 and ground-truth verification of the 24-scene OSCD manifest for Prithvi-EO-2.0.
 """
 
 import os
 import json
 import hashlib
+import argparse
+from pathlib import Path
 import sys
 
 def get_sha256(path: str) -> str:
@@ -16,12 +18,12 @@ def get_sha256(path: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-def validate_manifest(manifest_path: str) -> bool:
+def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectral") -> bool:
     print(f"=== VALIDATING MANIFEST: {manifest_path} ===")
     if not os.path.exists(manifest_path):
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
-    with open(manifest_path, 'r') as f:
+    with open(manifest_path, 'r', encoding="utf-8") as f:
         manifest = json.load(f)
 
     # 1. Archive checks
@@ -74,15 +76,27 @@ def validate_manifest(manifest_path: str) -> bool:
     # 7. Ground-truth file integrity
     missing_gt = 0
     corrupted_gt = 0
+    data_dir_resolved = Path(data_dir).resolve()
+
     for s in scenes:
         gt_info = s.get('ground_truth', {})
-        gt_path = gt_info.get('local_tif_path')
+        rel_path = gt_info.get('relative_tif_path')
+        if not rel_path:
+            raise ValueError(f"[MANIFEST ERROR] Scene '{s['scene_id']}' missing required portable key 'relative_tif_path'.")
+        target_path = (data_dir_resolved / rel_path).resolve()
+        try:
+            is_contained = target_path.is_relative_to(data_dir_resolved)
+        except AttributeError:
+            is_contained = str(target_path).startswith(str(data_dir_resolved))
+        if not is_contained:
+            raise RuntimeError(f"[SECURITY VIOLATION] Ground truth path escaped data_dir: {target_path}")
+
         expected_sha = gt_info.get('sha256')
-        if not os.path.exists(gt_path):
-            print(f" [FAIL] Missing ground truth for scene: {s['scene_id']} at {gt_path}")
+        if not target_path.is_file():
+            print(f" [FAIL] Missing ground truth for scene: {s['scene_id']} at {target_path}")
             missing_gt += 1
             continue
-        actual_sha = get_sha256(gt_path)
+        actual_sha = get_sha256(str(target_path))
         if actual_sha != expected_sha:
             print(f" [FAIL] Checksum mismatch for {s['scene_id']}: {actual_sha} != {expected_sha}")
             corrupted_gt += 1
@@ -91,7 +105,26 @@ def validate_manifest(manifest_path: str) -> bool:
     assert corrupted_gt == 0, f"{corrupted_gt} ground truth files corrupted!"
     print(f" [PASS] All 24 ground-truth rasters exist locally and match verified SHA256 checksums")
 
-    # 8. Check official IBM-NASA normalization constants
+    # 8. GATE 5: Physical Geospatial Mask Alignment on Target Scene 'bercy'
+    print("\n=== GATE 5: PHYSICAL GEOSPATIAL MASK ALIGNMENT AUDIT (SCENE 'bercy') ===")
+    import rasterio
+    bercy_gt_path = data_dir_resolved / "Onera Satellite Change Detection dataset - Train Labels/bercy/cm/bercy-cm.tif"
+    bercy_b02_path = data_dir_resolved / "Onera Satellite Change Detection dataset - Images/bercy/imgs_1_rect/B02.tif"
+    if not bercy_b02_path.exists():
+        bercy_b02_path = data_dir_resolved / "bercy/imgs_1_rect/B02.tif"
+
+    assert bercy_gt_path.is_file(), f"Bercy mask missing at {bercy_gt_path}"
+    assert bercy_b02_path.is_file(), f"Bercy B02 raster missing at {bercy_b02_path}"
+
+    with rasterio.open(str(bercy_gt_path)) as src_mask, rasterio.open(str(bercy_b02_path)) as src_b02:
+        assert src_mask.shape == src_b02.shape, f"Shape mismatch: Mask {src_mask.shape} != B02 {src_b02.shape}"
+        assert src_mask.shape == (360, 395), f"Expected bercy shape (360, 395), got {src_mask.shape}"
+        assert src_mask.crs == src_b02.crs, f"CRS mismatch: Mask {src_mask.crs} != B02 {src_b02.crs}"
+        assert src_mask.transform == src_b02.transform, f"Transform mismatch between mask and B02 raster"
+        print(f" [PASS] GATE 5 VERIFIED: Scene 'bercy' mask and B02 raster have identical shape (360, 395), CRS ({src_mask.crs}), and Affine Transform.")
+        print(" [NOTE] Physical CRS/transform alignment is verified for scene 'bercy'. Full all-scene alignment requires complete 24-scene raster ingestion.")
+
+    # 9. Check official IBM-NASA normalization constants
     pre = manifest.get('preprocessing_parameters', {})
     expected_means = [0.1087, 0.1342, 0.1433, 0.2734, 0.1958, 0.1363]
     expected_stds = [0.2248, 0.2179, 0.2178, 0.1850, 0.1242, 0.1049]
@@ -103,7 +136,11 @@ def validate_manifest(manifest_path: str) -> bool:
     return True
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Validate OSCD Multispectral Manifest")
+    parser.add_argument("--manifest", default=None, help="Path to manifest json")
+    parser.add_argument("--data_dir", default="data/oscd_multispectral", help="Path to data directory")
+    args = parser.parse_args()
     default_path = os.path.join(os.path.dirname(__file__), 'oscd_multispectral_manifest.json')
-    success = validate_manifest(default_path)
+    success = validate_manifest(args.manifest or default_path, data_dir=args.data_dir)
     if not success:
         sys.exit(1)

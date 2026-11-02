@@ -22,6 +22,7 @@ import time
 import shutil
 import urllib.request
 import zipfile
+from datetime import datetime
 from typing import Dict, Any, Tuple, Optional, List
 
 import numpy as np
@@ -48,7 +49,7 @@ OFFICIAL_HF_REPO = "ibm-nasa-geospatial/Prithvi-EO-2.0-300M"
 OFFICIAL_WEIGHTS_FILENAME = "Prithvi_EO_V2_300M.pt"
 OFFICIAL_WEIGHTS_URL = f"https://huggingface.co/{OFFICIAL_HF_REPO}/resolve/main/{OFFICIAL_WEIGHTS_FILENAME}"
 OFFICIAL_WEIGHTS_SHA256 = "faab2c8b776f0723f93431747603a7ec586a54fc45473613b4322c29752486e7"
-OFFICIAL_WEIGHTS_SIZE_BYTES = 1326275549
+OFFICIAL_WEIGHTS_SIZE_BYTES = 1326658396  # Pinned physical size verified via Hugging Face HTTP HEAD and external cache
 
 # Official ONERA OSCD Images Archive Constants
 OFFICIAL_IMAGES_URL = "https://partage.imt.fr/index.php/s/gKRaWgRnLMfwMGo/download"
@@ -118,10 +119,13 @@ def extract_single_scene_bands(zip_path: str, target_dir: str, scene: str) -> bo
         namelist = zf.namelist()
         extracted = 0
         for member in namelist:
-            base = os.path.basename(member)
-            if base in BAND_FILENAMES or base == "dates.txt":
-                parts = member.replace("\\", "/").split("/")
-                if scene in parts and any(p in parts for p in ["imgs_1", "imgs_2", "imgs_1_rect", "imgs_2_rect"]):
+            norm_member = member.replace("\\", "/")
+            base = os.path.basename(norm_member)
+            is_band = base in BAND_FILENAMES
+            is_date = base == "dates.txt" and (f"/{scene}/" in norm_member or norm_member.startswith(f"{scene}/"))
+            if is_band or is_date:
+                parts = norm_member.split("/")
+                if is_date or (scene in parts and any(p in parts for p in ["imgs_1", "imgs_2", "imgs_1_rect", "imgs_2_rect"])):
                     dest = os.path.join(target_dir, member)
                     os.makedirs(os.path.dirname(dest), exist_ok=True)
                     with zf.open(member) as src, open(dest, "wb") as dst:
@@ -169,14 +173,9 @@ def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[b
     return False, f"Scene folder '{scene}' not located after extraction."
 
 def load_band_raster(filepath: str) -> np.ndarray:
-    try:
-        import rasterio
-        with rasterio.open(filepath) as src:
-            arr = src.read(1).astype(np.float32)
-            return arr
-    except ImportError:
-        img = Image.open(filepath)
-        arr = np.array(img, dtype=np.float32)
+    import rasterio
+    with rasterio.open(filepath) as src:
+        arr = src.read(1).astype(np.float32)
         return arr
 
 def assemble_authentic_multispectral_tensor(
@@ -195,33 +194,43 @@ def assemble_authentic_multispectral_tensor(
 
     # 1. Temporal Bi-Epoch Chronological Order Check
     dates_file = os.path.join(scene_dir, "dates.txt")
-    t1_date, t2_date = None, None
-    if os.path.exists(dates_file):
-        with open(dates_file, "r") as df:
-            lines = [l.strip() for l in df.readlines() if l.strip()]
-            if len(lines) >= 2:
-                t1_date, t2_date = lines[0], lines[1]
-                if t1_date >= t2_date:
-                    raise ValueError(f"Temporal order violation in dates.txt: T1 ({t1_date}) >= T2 ({t2_date})")
+    if not os.path.exists(dates_file):
+        raise FileNotFoundError(f"[GATE 4 FAILED] Required dates.txt not found at {dates_file}")
+    with open(dates_file, "r") as df:
+        lines = [l.strip() for l in df.readlines() if l.strip()]
+    if len(lines) < 2:
+        raise ValueError(f"[GATE 4 FAILED] Incomplete temporal dates in {dates_file} (expected >= 2 dates)")
+    t1_date, t2_date = lines[0], lines[1]
+    def parse_date(d_str: str) -> datetime:
+        for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
+            try:
+                return datetime.strptime(d_str, fmt)
+            except ValueError:
+                pass
+        raise ValueError(f"[GATE 4 FAILED] Unrecognized date format in dates.txt: '{d_str}'")
+    dt1 = parse_date(t1_date)
+    dt2 = parse_date(t2_date)
+    if dt1 >= dt2:
+        raise ValueError(f"[GATE 4 FAILED] Temporal violation: T1 ({t1_date}) is not chronologically earlier than T2 ({t2_date})")
 
     t1_arrays = []
     t2_arrays = []
     band_stats = {}
     th, tw = target_hw
 
-    # Read geospatial metadata from first raster if rasterio is available
+    # Read geospatial metadata from first raster with rasterio
+    import rasterio
     first_b02 = os.path.join(t1_dir, "B02.tif")
     geo_metadata = {}
-    try:
-        import rasterio
-        with rasterio.open(first_b02) as src:
-            geo_metadata["crs"] = str(src.crs)
-            geo_metadata["transform"] = [float(x) for x in src.transform][:6]
-            geo_metadata["bounds"] = [float(x) for x in src.bounds]
-            geo_metadata["full_width"] = src.width
-            geo_metadata["full_height"] = src.height
-    except Exception:
-        geo_metadata["crs"] = "EPSG:32631 (Sentinel-2 UTM)"
+    with rasterio.open(first_b02) as src:
+        ref_crs = str(src.crs)
+        ref_transform = src.transform
+        ref_shape = (src.height, src.width)
+        geo_metadata["crs"] = ref_crs
+        geo_metadata["transform"] = [float(x) for x in ref_transform][:6]
+        geo_metadata["bounds"] = [float(x) for x in src.bounds]
+        geo_metadata["full_width"] = src.width
+        geo_metadata["full_height"] = src.height
 
     for idx, band_name in enumerate(REQUIRED_6_BANDS):
         fname = f"{band_name}.tif"
@@ -230,6 +239,17 @@ def assemble_authentic_multispectral_tensor(
 
         if not os.path.exists(p1) or not os.path.exists(p2):
             raise FileNotFoundError(f"Missing required multispectral band raster: {p1} or {p2}")
+
+        # Assert strict rasterio metadata alignment across all 12 rasters
+        with rasterio.open(p1) as s1, rasterio.open(p2) as s2:
+            if (s1.height, s1.width) != ref_shape:
+                raise ValueError(f"Shape mismatch in band {band_name} at T1: {(s1.height, s1.width)} != {ref_shape}")
+            if (s2.height, s2.width) != ref_shape:
+                raise ValueError(f"Shape mismatch in band {band_name} at T2: {(s2.height, s2.width)} != {ref_shape}")
+            if str(s1.crs) != ref_crs or str(s2.crs) != ref_crs:
+                raise ValueError(f"CRS mismatch in band {band_name}: T1={s1.crs}, T2={s2.crs}, expected {ref_crs}")
+            if s1.transform != ref_transform or s2.transform != ref_transform:
+                raise ValueError(f"Affine transform mismatch in band {band_name} against reference B02")
 
         a1 = load_band_raster(p1)
         a2 = load_band_raster(p2)
@@ -265,11 +285,15 @@ def assemble_authentic_multispectral_tensor(
         a1_crop = a1[start_y : start_y + th, start_x : start_x + tw]
         a2_crop = a2[start_y : start_y + th, start_x : start_x + tw]
 
+        window_transform = rasterio.windows.transform(
+            rasterio.windows.Window(start_x, start_y, tw, th), ref_transform
+        )
         geo_metadata["window_crop"] = {
             "col_off": start_x,
             "row_off": start_y,
             "width": tw,
-            "height": th
+            "height": th,
+            "transform": [float(x) for x in window_transform][:6]
         }
 
         # Official HLS Surface Reflectance normalization:
@@ -300,7 +324,7 @@ def assemble_authentic_multispectral_tensor(
         "temporal_dates": {
             "t1_date": t1_date,
             "t2_date": t2_date,
-            "chronological_order_verified": t1_date < t2_date if (t1_date and t2_date) else True
+            "chronological_order_verified": bool(dt1 < dt2)
         },
         "geospatial_metadata": geo_metadata,
         "band_radiometry_stats": band_stats,
@@ -422,9 +446,8 @@ def execute_real_inference(
     print(f"[INFERENCE COMPLETE] Latency: {forward_ms} ms")
 
     # 8. Finite Assertions & Telemetry Extraction
-    assert not torch.isnan(logits).any(), "NaN detected in model logits!"
-    assert not torch.isinf(logits).any(), "Inf detected in model logits!"
-    assert not torch.isnan(probs).any(), "NaN detected in change probabilities!"
+    assert torch.isfinite(logits).all(), "Non-finite values (NaN/Inf) detected in model logits!"
+    assert torch.isfinite(probs).all(), "Non-finite values (NaN/Inf) detected in change probabilities!"
 
     min_logit = float(logits.min().cpu())
     max_logit = float(logits.max().cpu())
@@ -439,8 +462,8 @@ def execute_real_inference(
     total_duration_sec = round(time.time() - start_time, 2)
 
     report = {
-        "status": "PASS — AUTHENTIC CHECKPOINT AND REAL MULTISPECTRAL INFERENCE VERIFIED",
-        "phase": "AI-08B3 — Cloud Real Pretrained Inference",
+        "status": "PASS — PRETRAINED COMPUTATIONAL GRAPH FORWARD PASS VERIFIED (ZERO DOWNSTREAM ACCURACY CLAIMED)",
+        "phase": "AI-08B4 — Cloud Pretrained Forward Pass Verification",
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "hardware_telemetry": {
             "device": str(device),
