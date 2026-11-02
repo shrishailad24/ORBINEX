@@ -82,7 +82,7 @@ export function credentials(req: Request, body: Record<string, unknown> = {}): C
   }
   // Allow Groq to use pre-configured server key if client key is omitted
   if (!key && providerRaw && providerRaw.toLowerCase() === 'groq') {
-    key = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY';
+    key = process.env.GROQ_API_KEY || '';
   }
   if (key && !isPlausibleKey(key)) return { error: 'That does not look like an API key.' };
   if (modelRaw && !isPlausibleModel(modelRaw)) return { error: 'That does not look like a model id.' };

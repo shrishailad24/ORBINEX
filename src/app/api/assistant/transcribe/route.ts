@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const GROQ_AUDIO_URL = 'https://api.groq.com/openai/v1/audio/transcriptions';
-const GROQ_KEY = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY';
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
 
 export async function POST(req: NextRequest) {
   try {

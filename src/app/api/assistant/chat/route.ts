@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_KEY = process.env.GROQ_API_KEY || 'YOUR_GROQ_API_KEY';
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
 
 const KNOWN_LOCATIONS: Record<string, { lat: number; lng: number; name: string; zoom: number }> = {
   bengaluru: { lat: 12.9716, lng: 77.5946, name: 'Bengaluru Peri-Urban Fringe', zoom: 13 },

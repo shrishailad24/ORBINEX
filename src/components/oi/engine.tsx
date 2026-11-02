@@ -124,7 +124,7 @@ export function EngineSheet({ engine, setEngine, keyValue, setKey, onDone }: {
               <button
                 type="button"
                 onClick={() => {
-                  const k = 'YOUR_GROQ_API_KEY';
+                  const k = process.env.NEXT_PUBLIC_GROQ_API_KEY || '';
                   setKey(k);
                   saveKey('groq', k, engine.remember);
                   setStatus({ kind: 'idle', text: '' });
