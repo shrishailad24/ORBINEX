@@ -65,33 +65,33 @@ export interface OscdEvaluationResult {
  * 14 Training Scenes / 10 Testing Scenes (Split geographically to eliminate data leakage)
  */
 export const OSCD_SCENE_ROSTER: OscdScene[] = [
-  // ── OFFICIAL TEST SPLIT (10 Scenes) ──
-  { sceneName: 'bermuda', country: 'United Kingdom', continent: 'North America', split: 'test', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'brasilia', country: 'Brazil', continent: 'South America', split: 'test', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'chongqing', country: 'China', continent: 'Asia', split: 'test', dimensions: [800, 800], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'dubai', country: 'United Arab Emirates', continent: 'Asia', split: 'test', dimensions: [750, 750], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'earthworks' },
-  { sceneName: 'lasvegas', country: 'United States', continent: 'North America', split: 'test', dimensions: [650, 650], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'milano', country: 'Italy', continent: 'Europe', split: 'test', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'montpellier', country: 'France', continent: 'Europe', split: 'test', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'rio', country: 'Brazil', continent: 'South America', split: 'test', dimensions: [800, 800], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'spokane', country: 'United States', continent: 'North America', split: 'test', dimensions: [650, 650], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'vegetation_clearing' },
-  { sceneName: 'valencia', country: 'Spain', continent: 'Europe', split: 'test', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  // ── OFFICIAL TEST SPLIT (10 Scenes - IEEE GRSS / ONERA Ground Truth) ──
+  { sceneName: 'brasilia', country: 'Brazil', continent: 'South America', split: 'test', dimensions: [469, 433], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'chongqing', country: 'China', continent: 'Asia', split: 'test', dimensions: [544, 730], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'dubai', country: 'United Arab Emirates', continent: 'Asia', split: 'test', dimensions: [634, 774], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'earthworks' },
+  { sceneName: 'lasvegas', country: 'United States', continent: 'North America', split: 'test', dimensions: [716, 824], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'milano', country: 'Italy', continent: 'Europe', split: 'test', dimensions: [558, 545], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'montpellier', country: 'France', continent: 'Europe', split: 'test', dimensions: [451, 426], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'norcia', country: 'Italy', continent: 'Europe', split: 'test', dimensions: [385, 241], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'earthworks' },
+  { sceneName: 'rio', country: 'Brazil', continent: 'South America', split: 'test', dimensions: [426, 353], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'saclay_w', country: 'France', continent: 'Europe', split: 'test', dimensions: [688, 639], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'valencia', country: 'Spain', continent: 'Europe', split: 'test', dimensions: [476, 458], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
 
-  // ── OFFICIAL TRAINING SPLIT (14 Scenes) ──
-  { sceneName: 'aguasclaras', country: 'Brazil', continent: 'South America', split: 'train', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'beirut', country: 'Lebanon', continent: 'Asia', split: 'train', dimensions: [750, 750], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'bochum', country: 'Germany', continent: 'Europe', split: 'train', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'cuiaba', country: 'Brazil', continent: 'South America', split: 'train', dimensions: [650, 650], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'vegetation_clearing' },
-  { sceneName: 'dammam', country: 'Saudi Arabia', continent: 'Asia', split: 'train', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'earthworks' },
-  { sceneName: 'hongkong', country: 'Hong Kong', continent: 'Asia', split: 'train', dimensions: [800, 800], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'mumbai', country: 'India', continent: 'Asia', split: 'train', dimensions: [800, 800], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'nantes', country: 'France', continent: 'Europe', split: 'train', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'paris', country: 'France', continent: 'Europe', split: 'train', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'pisa', country: 'Italy', continent: 'Europe', split: 'train', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'rennes', country: 'France', continent: 'Europe', split: 'train', dimensions: [600, 600], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'rome', country: 'Italy', continent: 'Europe', split: 'train', dimensions: [700, 700], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
-  { sceneName: 'sacramento', country: 'United States', continent: 'North America', split: 'train', dimensions: [650, 650], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
-  { sceneName: 'vienna', country: 'Austria', continent: 'Europe', split: 'train', dimensions: [650, 650], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  // ── OFFICIAL TRAINING SPLIT (14 Scenes - IEEE GRSS / ONERA Ground Truth) ──
+  { sceneName: 'abudhabi', country: 'United Arab Emirates', continent: 'Asia', split: 'train', dimensions: [785, 799], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'earthworks' },
+  { sceneName: 'aguasclaras', country: 'Brazil', continent: 'South America', split: 'train', dimensions: [525, 471], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'beihai', country: 'China', continent: 'Asia', split: 'train', dimensions: [772, 902], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'beirut', country: 'Lebanon', continent: 'Asia', split: 'train', dimensions: [1070, 1180], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'bercy', country: 'France', continent: 'Europe', split: 'train', dimensions: [360, 395], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'bordeaux', country: 'France', continent: 'Europe', split: 'train', dimensions: [461, 517], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'cupertino', country: 'United States', continent: 'North America', split: 'train', dimensions: [788, 1015], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'hongkong', country: 'Hong Kong', continent: 'Asia', split: 'train', dimensions: [540, 695], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'mumbai', country: 'India', continent: 'Asia', split: 'train', dimensions: [557, 858], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'nantes', country: 'France', continent: 'Europe', split: 'train', dimensions: [582, 522], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'paris', country: 'France', continent: 'Europe', split: 'train', dimensions: [390, 408], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
+  { sceneName: 'pisa', country: 'Italy', continent: 'Europe', split: 'train', dimensions: [718, 776], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'rennes', country: 'France', continent: 'Europe', split: 'train', dimensions: [563, 339], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'urban_expansion' },
+  { sceneName: 'saclay_e', country: 'France', continent: 'Europe', split: 'train', dimensions: [688, 639], groundTruthMaskAvailable: true, cloudFree: true, primaryChangeType: 'infrastructure' },
 ];
 
 /**
