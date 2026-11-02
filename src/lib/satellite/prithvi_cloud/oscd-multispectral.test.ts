@@ -3,8 +3,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 
-describe('ORBINEX AI-08B1 — Authentic Multispectral OSCD Data Readiness', () => {
+describe('ORBINEX AI-08B1 & AI-08B3 — Authentic Multispectral OSCD Data & Pretrained Inference Readiness', () => {
   const manifestPath = path.join(__dirname, 'oscd_multispectral_manifest.json');
+  const realInferenceScript = path.join(__dirname, 'run_cloud_real_inference.py');
 
   it('1. Verifies authentic multispectral manifest exists and parses valid JSON', () => {
     expect(fs.existsSync(manifestPath)).toBe(true);
@@ -77,5 +78,25 @@ describe('ORBINEX AI-08B1 — Authentic Multispectral OSCD Data Readiness', () =
     const scriptPath = path.join(__dirname, 'validate_multispectral_manifest.py');
     const output = execSync(`python "${scriptPath}"`, { encoding: 'utf-8' });
     expect(output).toContain('ALL MULTISPECTRAL MANIFEST CHECKS PASSED SUCCESSFULLY');
+  });
+
+  it('8. Verifies exact ground-truth physical change counts (AI-08B2 & AI-08B3 reconciliation)', () => {
+    const content = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    expect(content.summary.canonical_train_changes).toBe(149190);
+    expect(content.summary.canonical_test_changes).toBe(159077);
+
+    // Verify aguasclaras physical count is 4,056 (reconciling the 558-pixel cm.png anti-aliasing delta)
+    const aguasclaras = content.scenes.find((s: any) => s.scene_id === 'aguasclaras');
+    expect(aguasclaras).toBeDefined();
+    expect(aguasclaras.ground_truth_changes).toBe(4056);
+    expect(aguasclaras.dimensions).toEqual([525, 471]);
+    expect(aguasclaras.total_pixels).toBe(247275);
+  });
+
+  it('9. Verifies run_cloud_real_inference.py exists and executes dry-run with code 0', () => {
+    expect(fs.existsSync(realInferenceScript)).toBe(true);
+    const output = execSync(`python "${realInferenceScript}" --dry_run`, { encoding: 'utf-8' });
+    expect(output).toContain('DRY RUN SUCCEEDED: SPECIFICATIONS VALIDATED');
+    expect(output).toContain('Model Training Authorization: STRICTLY BLOCKED');
   });
 });
