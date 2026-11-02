@@ -96,15 +96,16 @@
     "total_scenes": 24,
     "canonical_train_scenes": 14,
     "canonical_train_pixels": 6517578,
-    "canonical_train_changes": 149748,
+    "canonical_train_changes": 149190,
     "canonical_test_scenes": 10,
     "canonical_test_pixels": 3077936,
     "canonical_test_changes": 159077,
     "total_pixels": 9595514,
-    "total_changes": 308825,
+    "total_changes": 308267,
     "spatially_blocked_test_scenes": 9,
     "spatially_blocked_test_pixels": 2638304,
-    "excluded_test_scene": "saclay_w"
+    "excluded_test_scene": "saclay_w",
+    "spatially_blocked_test_changes": 154059
   },
   "scenes": [
     {
@@ -282,8 +283,8 @@
         471
       ],
       "total_pixels": 247275,
-      "ground_truth_changes": 4614,
-      "change_prevalence_pct": 1.87,
+      "ground_truth_changes": 4056,
+      "change_prevalence_pct": 1.64,
       "spatial_leakage_risk": "LOW",
       "remote_archive_paths": {
         "t1_native_dir": "aguasclaras/imgs_1/",
