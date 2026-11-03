@@ -113,28 +113,12 @@ def ensure_checkpoint(checkpoint_path: str, auto_download: bool) -> Tuple[bool, 
         return True, "Checkpoint downloaded and SHA-256 verified successfully."
     return False, "Failed to download official checkpoint from Hugging Face."
 
-def extract_single_scene_bands(zip_path: str, target_dir: str, scene: str) -> bool:
-    print(f"[EXTRACT] Extracting authentic 6-band rasters for scene '{scene}' from {zip_path}...")
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        namelist = zf.namelist()
-        extracted = 0
-        for member in namelist:
-            norm_member = member.replace("\\", "/")
-            base = os.path.basename(norm_member)
-            is_band = base in BAND_FILENAMES
-            is_date = base == "dates.txt" and (f"/{scene}/" in norm_member or norm_member.startswith(f"{scene}/"))
-            if is_band or is_date:
-                parts = norm_member.split("/")
-                if is_date or (scene in parts and any(p in parts for p in ["imgs_1", "imgs_2", "imgs_1_rect", "imgs_2_rect"])):
-                    dest = os.path.join(target_dir, member)
-                    os.makedirs(os.path.dirname(dest), exist_ok=True)
-                    with zf.open(member) as src, open(dest, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
-                    extracted += 1
-    print(f"[EXTRACT] Extracted {extracted} assets for scene '{scene}'.")
-    return extracted >= 12
-
-def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[bool, str]:
+def ensure_scene_data(data_dir: str, scene: str, auto_download: bool = False) -> Tuple[bool, str]:
+    """
+    Verifies that authentic Sentinel-2 multispectral assets for the scene are pre-extracted
+    and available on disk from the verified ingestion pipeline.
+    Does not independently download or extract unverified archives.
+    """
     scene_base_candidates = [
         os.path.join(data_dir, "Onera Satellite Change Detection dataset - Images", scene),
         os.path.join(data_dir, scene),
@@ -143,34 +127,18 @@ def ensure_scene_data(data_dir: str, scene: str, auto_download: bool) -> Tuple[b
         if os.path.exists(s_base):
             t1_dir = os.path.join(s_base, "imgs_1_rect") if os.path.exists(os.path.join(s_base, "imgs_1_rect")) else os.path.join(s_base, "imgs_1")
             t2_dir = os.path.join(s_base, "imgs_2_rect") if os.path.exists(os.path.join(s_base, "imgs_2_rect")) else os.path.join(s_base, "imgs_2")
-            if os.path.exists(t1_dir) and os.path.exists(t2_dir):
+            dates_file = os.path.join(s_base, "dates.txt")
+            if os.path.exists(t1_dir) and os.path.exists(t2_dir) and os.path.exists(dates_file):
                 t1_bands = [f for f in BAND_FILENAMES if os.path.exists(os.path.join(t1_dir, f))]
                 t2_bands = [f for f in BAND_FILENAMES if os.path.exists(os.path.join(t2_dir, f))]
                 if len(t1_bands) == 6 and len(t2_bands) == 6:
                     return True, s_base
 
-    if not auto_download:
-        return False, f"Scene '{scene}' imagery not found in {data_dir} and --download_if_missing not enabled."
-
-    archive_path = os.path.join(data_dir, "Onera Satellite Change Detection dataset - Images.zip")
-    if not os.path.exists(archive_path):
-        print(f"[DATASET] Downloading authentic OSCD archive (~403.5 MB)...")
-        success = download_with_progress(OFFICIAL_IMAGES_URL, archive_path, OFFICIAL_IMAGES_MD5, "md5")
-        if not success:
-            print("[DATASET] Fallback to Hugging Face mirror...")
-            success = download_with_progress(OFFICIAL_IMAGES_HF_MIRROR, archive_path, OFFICIAL_IMAGES_MD5, "md5")
-            if not success:
-                return False, "Failed to download OSCD images archive from all sources."
-
-    extracted = extract_single_scene_bands(archive_path, data_dir, scene)
-    if not extracted:
-        return False, f"Failed to extract required bands for scene '{scene}'."
-
-    for s_base in scene_base_candidates:
-        if os.path.exists(s_base):
-            return True, s_base
-
-    return False, f"Scene folder '{scene}' not located after extraction."
+    return False, (
+        f"[INFERENCE PRECONDITION BLOCKED] Required authentic multispectral imagery for scene '{scene}' "
+        f"not found in '{data_dir}'. Pre-extracted assets with all 6 bands in both epochs and dates.txt "
+        f"are strictly required. Please run 'download_and_verify_oscd_multispectral.py' to acquire and verify assets first."
+    )
 
 def load_band_raster(filepath: str) -> np.ndarray:
     import rasterio

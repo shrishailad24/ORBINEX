@@ -50,7 +50,7 @@ def clean_url(raw_url: str) -> str:
 def is_path_contained(target_path: Path, base_dir: Path) -> bool:
     try:
         target_resolved = target_path.resolve(strict=False)
-        base_resolved = base_dir.resolve(strict=True)
+        base_resolved = base_dir.resolve(strict=False)
         try:
             return target_resolved.is_relative_to(base_resolved)
         except AttributeError:
@@ -59,10 +59,14 @@ def is_path_contained(target_path: Path, base_dir: Path) -> bool:
         return False
 
 def safe_extract_zip_member(zf: zipfile.ZipFile, member: zipfile.ZipInfo, output_dir: str, written_destinations: set) -> Path:
-    # 1. Symlink check
+    # 1. Non-regular entry and symlink checks
+    if member.is_dir() or member.filename.endswith('/'):
+        raise SecurityError(f"Directory entry rejected for file extraction: {member.filename}")
     mode = member.external_attr >> 16
     if (mode & 0o170000) == 0o120000:
         raise SecurityError(f"Symlink rejected in archive member: {member.filename}")
+    if (mode & 0o170000) != 0 and (mode & 0o170000) != 0o100000:
+        raise SecurityError(f"Non-regular archive entry rejected: {member.filename} (mode {oct(mode)})")
 
     # 2. Strict path normalization and path traversal rejection
     raw_name = member.filename.replace('\\', '/')
@@ -80,10 +84,12 @@ def safe_extract_zip_member(zf: zipfile.ZipFile, member: zipfile.ZipInfo, output
     if not is_path_contained(dest_path, base_path):
         raise SecurityError(f"Path containment violation: {dest_path} is outside {base_path}")
 
-    # 4. Reject duplicate archive destination
+    # 4. Reject duplicate archive destination and pre-existing destination files
     dest_str = str(dest_path)
     if dest_str in written_destinations:
         raise SecurityError(f"Duplicate archive extraction destination rejected: {dest_str}")
+    if dest_path.exists():
+        raise SecurityError(f"Pre-existing destination file rejected (preventing collision/overwrite): {dest_path}")
 
     # 5. Check symlinked parent directories
     curr = dest_path.parent
