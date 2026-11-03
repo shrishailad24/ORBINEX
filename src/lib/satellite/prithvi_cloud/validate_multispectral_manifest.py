@@ -9,7 +9,9 @@ import re
 import json
 import hashlib
 import argparse
+from datetime import datetime
 from pathlib import Path
+from typing import Tuple, List, Dict, Any
 import sys
 
 class SecurityError(RuntimeError):
@@ -27,6 +29,32 @@ def is_path_contained(target_path: Path, base_dir: Path) -> bool:
     except (ValueError, OSError):
         return False
 
+def parse_date_token(token: str) -> datetime:
+    token = token.strip()
+    m = re.search(r'(\d{4}[-/]?\d{2}[-/]?\d{2})', token)
+    if m:
+        cleaned = m.group(1).replace('-', '').replace('/', '')
+        return datetime.strptime(cleaned, "%Y%m%d")
+    for fmt in ("%Y%m%d", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(token.split()[-1], fmt)
+        except ValueError:
+            pass
+    raise ValueError(f"Unable to parse date string: '{token}'")
+
+def validate_dates_content(dates_content: str, scene_id: str) -> Tuple[datetime, datetime]:
+    lines = [line.strip() for line in dates_content.splitlines() if line.strip()]
+    if len(lines) < 2:
+        raise RuntimeError(f"dates.txt for scene '{scene_id}' contains fewer than 2 date entries: {lines}")
+    t1 = parse_date_token(lines[0])
+    t2 = parse_date_token(lines[1])
+    if t1 >= t2:
+        raise RuntimeError(
+            f"Temporal chronology violation for scene '{scene_id}': "
+            f"T1 ({t1.strftime('%Y-%m-%d')}) >= T2 ({t2.strftime('%Y-%m-%d')})"
+        )
+    return t1, t2
+
 def get_sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, 'rb') as f:
@@ -34,7 +62,7 @@ def get_sha256(path: str) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectral") -> bool:
+def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectral", require_imagery: bool = True) -> bool:
     print(f"=== VALIDATING MANIFEST: {manifest_path} ===")
     if not os.path.exists(manifest_path):
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
@@ -101,7 +129,7 @@ def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectr
         raise RuntimeError(f"Blocked test pixel count mismatch: {total_blocked_px} != 2638304")
     print(f" [PASS] Spatially blocked independent protocol verified: 9 scenes, 2,638,304 pixels (saclay_w excluded)")
 
-    # 7. Ground-truth file integrity
+    # 7. Ground-truth file integrity (Gate 6)
     missing_gt = 0
     corrupted_gt = 0
     data_dir_resolved = Path(data_dir).resolve(strict=False)
@@ -134,37 +162,153 @@ def validate_manifest(manifest_path: str, data_dir: str = "data/oscd_multispectr
             corrupted_gt += 1
 
     if missing_gt != 0:
-        raise RuntimeError(f"Gate 4 failed: {missing_gt} ground truth files missing from disk at {data_dir}!")
+        raise RuntimeError(f"Gate 6 failed: {missing_gt} ground truth files missing from disk at {data_dir}!")
     if corrupted_gt != 0:
-        raise RuntimeError(f"Gate 4 failed: {corrupted_gt} ground truth files failed SHA-256 verification!")
+        raise RuntimeError(f"Gate 6 failed: {corrupted_gt} ground truth files failed SHA-256 verification!")
     print(f" [PASS] All 24 ground-truth rasters exist locally and match verified SHA256 checksums")
 
-    # 8. GATE 5: Physical Geospatial Mask Alignment on Target Scene 'bercy'
-    print("\n=== GATE 5: PHYSICAL GEOSPATIAL MASK ALIGNMENT AUDIT (SCENE 'bercy') ===")
-    import rasterio
-    bercy_gt_path = data_dir_resolved / "Onera Satellite Change Detection dataset - Train Labels/bercy/cm/bercy-cm.tif"
-    bercy_b02_path = data_dir_resolved / "Onera Satellite Change Detection dataset - Images/bercy/imgs_1_rect/B02.tif"
-    if not bercy_b02_path.exists():
-        bercy_b02_path = data_dir_resolved / "bercy/imgs_1_rect/B02.tif"
+    # 8. GATE 7: Physical 24-Scene Raster Ingestion, Temporal Chronology & Geospatial Alignment
+    print("\n=== GATE 7: PHYSICAL 24-SCENE RASTER INGESTION & GEOSPATIAL ALIGNMENT AUDIT ===")
+    if not require_imagery:
+        print(" [NOTE] Physical 24-scene raster alignment check skipped (require_imagery=False).")
+        print(" [NOTE] Ground-truth manifest and labels are verified, but physical imagery rasters remain unverified.")
+    else:
+        try:
+            import rasterio
+        except ImportError:
+            raise RuntimeError(
+                "rasterio is required to perform physical geospatial raster verification. "
+                "Please ensure rasterio is installed in the active environment."
+            )
 
-    if not bercy_gt_path.is_file():
-        raise RuntimeError(f"Gate 5 failed: Bercy ground-truth mask missing at {bercy_gt_path}")
-    if not bercy_b02_path.is_file():
-        raise RuntimeError(f"Gate 5 failed: Bercy B02 reference raster missing at {bercy_b02_path}")
+        verified_scenes = 0
+        total_bands_verified = 0
 
-    with rasterio.open(str(bercy_gt_path)) as src_mask, rasterio.open(str(bercy_b02_path)) as src_b02:
-        if src_mask.shape != src_b02.shape:
-            raise RuntimeError(f"Gate 5 failed: Shape mismatch between Bercy mask {src_mask.shape} and B02 {src_b02.shape}")
-        if src_mask.shape != (360, 395):
-            raise RuntimeError(f"Gate 5 failed: Expected Bercy dimensions (360, 395), got {src_mask.shape}")
-        if src_mask.crs != src_b02.crs:
-            raise RuntimeError(f"Gate 5 failed: CRS mismatch between Bercy mask ({src_mask.crs}) and B02 ({src_b02.crs})")
-        if src_mask.transform != src_b02.transform:
-            raise RuntimeError(f"Gate 5 failed: Affine transform mismatch between Bercy mask and B02 raster")
-        print(f" [PASS] GATE 5 VERIFIED: Scene 'bercy' mask and B02 raster have identical shape (360, 395), CRS ({src_mask.crs}), and Affine Transform.")
-        print(" [NOTE] Physical CRS/transform alignment is verified for scene 'bercy' only. All-scene physical alignment remains unverified until complete 24-scene raster ingestion.")
+        for s in scenes:
+            scene_id = s["scene_id"]
+            expected_dims = s.get("dimensions")  # [height, width]
+            if not expected_dims or len(expected_dims) != 2:
+                raise RuntimeError(f"Manifest missing valid 'dimensions' for scene '{scene_id}': {expected_dims}")
+            exp_h, exp_w = expected_dims[0], expected_dims[1]
 
-    # 9. Check official IBM-NASA normalization constants
+            # 1. Locate scene imagery directory
+            scene_base_candidates = [
+                data_dir_resolved / "Onera Satellite Change Detection dataset - Images" / scene_id,
+                data_dir_resolved / scene_id,
+            ]
+            scene_dir = None
+            for cand in scene_base_candidates:
+                if cand.is_dir():
+                    scene_dir = cand
+                    break
+            if not scene_dir:
+                raise RuntimeError(
+                    f"Gate 7 failed: Imagery directory for scene '{scene_id}' not found in '{data_dir_resolved}'. "
+                    f"Checked: {[str(c) for c in scene_base_candidates]}"
+                )
+
+            # 2. Verify dates.txt and temporal order T1 < T2
+            dates_file = scene_dir / "dates.txt"
+            if not dates_file.is_file():
+                raise RuntimeError(f"Gate 7 failed: Missing dates.txt for scene '{scene_id}' at {dates_file}")
+            with open(dates_file, "r", encoding="utf-8") as f:
+                dates_text = f.read()
+            t1, t2 = validate_dates_content(dates_text, scene_id)
+
+            # 3. Locate rectified band directories
+            t1_dir = scene_dir / "imgs_1_rect"
+            t2_dir = scene_dir / "imgs_2_rect"
+            if not t1_dir.is_dir():
+                raise RuntimeError(f"Gate 7 failed: Missing 'imgs_1_rect' directory for scene '{scene_id}' at {t1_dir}")
+            if not t2_dir.is_dir():
+                raise RuntimeError(f"Gate 7 failed: Missing 'imgs_2_rect' directory for scene '{scene_id}' at {t2_dir}")
+
+            # 4. Check all 12 rectified band files exist
+            required_band_names = ['B02.tif', 'B03.tif', 'B04.tif', 'B8A.tif', 'B11.tif', 'B12.tif']
+            t1_band_paths = [t1_dir / b for b in required_band_names]
+            t2_band_paths = [t2_dir / b for b in required_band_names]
+
+            for bp in t1_band_paths:
+                if not bp.is_file():
+                    raise RuntimeError(f"Gate 7 failed: Scene '{scene_id}' missing epoch 1 band file: {bp}")
+            for bp in t2_band_paths:
+                if not bp.is_file():
+                    raise RuntimeError(f"Gate 7 failed: Scene '{scene_id}' missing epoch 2 band file: {bp}")
+
+            # 5. Geospatial alignment across all 12 bands using T1 B02 as reference
+            ref_b02_path = t1_dir / "B02.tif"
+            with rasterio.open(str(ref_b02_path)) as src_ref:
+                ref_shape = src_ref.shape
+                ref_crs = src_ref.crs
+                ref_transform = src_ref.transform
+
+                if ref_shape != (exp_h, exp_w):
+                    raise RuntimeError(
+                        f"Gate 7 failed: Scene '{scene_id}' reference B02 shape {ref_shape} "
+                        f"mismatches manifest dimensions {(exp_h, exp_w)}"
+                    )
+                if not ref_crs:
+                    raise RuntimeError(f"Gate 7 failed: Scene '{scene_id}' reference B02 has missing or invalid CRS")
+
+                # Verify remaining 11 bands against reference
+                all_other_bands = t1_band_paths[1:] + t2_band_paths
+                for bp in all_other_bands:
+                    with rasterio.open(str(bp)) as src_band:
+                        if src_band.shape != ref_shape:
+                            raise RuntimeError(
+                                f"Gate 7 failed: Scene '{scene_id}' band {bp.name} shape {src_band.shape} "
+                                f"mismatches reference shape {ref_shape}"
+                            )
+                        if src_band.crs != ref_crs:
+                            raise RuntimeError(
+                                f"Gate 7 failed: Scene '{scene_id}' band {bp.name} CRS {src_band.crs} "
+                                f"mismatches reference CRS {ref_crs}"
+                            )
+                        if src_band.transform != ref_transform:
+                            raise RuntimeError(
+                                f"Gate 7 failed: Scene '{scene_id}' band {bp.name} transform {src_band.transform} "
+                                f"mismatches reference transform {ref_transform}"
+                            )
+
+            # 6. Verify corresponding ground-truth mask alignment
+            gt_info = s.get("ground_truth", {})
+            mask_rel = gt_info.get("relative_tif_path")
+            mask_path = (data_dir_resolved / mask_rel).resolve(strict=False)
+            if not mask_path.is_file():
+                raise RuntimeError(f"Gate 7 failed: Ground-truth mask missing for scene '{scene_id}' at {mask_path}")
+
+            with rasterio.open(str(mask_path)) as src_mask:
+                if src_mask.shape != ref_shape:
+                    raise RuntimeError(
+                        f"Gate 7 failed: Scene '{scene_id}' mask shape {src_mask.shape} "
+                        f"mismatches reference raster shape {ref_shape}"
+                    )
+                if src_mask.crs != ref_crs:
+                    raise RuntimeError(
+                        f"Gate 7 failed: Scene '{scene_id}' mask CRS {src_mask.crs} "
+                        f"mismatches reference raster CRS {ref_crs}"
+                    )
+                if src_mask.transform != ref_transform:
+                    raise RuntimeError(
+                        f"Gate 7 failed: Scene '{scene_id}' mask transform {src_mask.transform} "
+                        f"mismatches reference raster transform {ref_transform}"
+                    )
+
+            verified_scenes += 1
+            total_bands_verified += 12
+            print(
+                f" [PASS] Scene '{scene_id:15s}': 12 bands verified (dims={exp_h}x{exp_w}, CRS={ref_crs}), "
+                f"T1 ({t1.strftime('%Y-%m-%d')}) < T2 ({t2.strftime('%Y-%m-%d')}), mask aligned."
+            )
+
+        if verified_scenes != 24 or total_bands_verified != 288:
+            raise RuntimeError(
+                f"Gate 7 failed: Expected 24 verified scenes and 288 band rasters, "
+                f"got {verified_scenes} scenes and {total_bands_verified} bands."
+            )
+        print(f" [PASS] GATE 7 VERIFIED: All 24 scenes (288 rectified bands, 24 dates.txt, 24 masks) physically aligned.")
+
+    # 9. Check official IBM-NASA normalization constants (Gate 8)
     pre = manifest.get('preprocessing_parameters', {})
     expected_means = [0.1087, 0.1342, 0.1433, 0.2734, 0.1958, 0.1363]
     expected_stds = [0.2248, 0.2179, 0.2178, 0.1850, 0.1242, 0.1049]
@@ -181,8 +325,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Validate OSCD Multispectral Manifest")
     parser.add_argument("--manifest", default=None, help="Path to manifest json")
     parser.add_argument("--data_dir", default="data/oscd_multispectral", help="Path to data directory")
+    parser.add_argument("--skip_imagery", action="store_true", help="Skip 24-scene raster and alignment verification (labels and metadata only)")
     args = parser.parse_args()
     default_path = os.path.join(os.path.dirname(__file__), 'oscd_multispectral_manifest.json')
-    success = validate_manifest(args.manifest or default_path, data_dir=args.data_dir)
+    success = validate_manifest(
+        args.manifest or default_path,
+        data_dir=args.data_dir,
+        require_imagery=not args.skip_imagery
+    )
     if not success:
         sys.exit(1)
